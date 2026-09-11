@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Pool Tools</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #F1F7F7);
+    --surface: var(--tg-theme-secondary-bg-color, #FFFFFF);
+    --ink: var(--tg-theme-text-color, #0C2B30);
+    --ink-soft: #4C6B70;
+    --teal: #0E7C86;
+    --teal-deep: #0A5259;
+    --border: #D9EAEA;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif;
+    min-height:100vh; padding:20px 16px 40px;
+  }
+  .wrap{max-width:480px; margin:0 auto;}
+
+  .top{margin-bottom:22px; padding:0 2px;}
+  .eyebrow{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--teal); font-weight:600;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; margin:2px 0 0; letter-spacing:-.01em;}
+
+  .section-label{
+    font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase;
+    letter-spacing:.06em; margin:22px 2px 10px;
+  }
+  .section-label:first-of-type{margin-top:0;}
+
+  .tool-card{
+    display:flex; align-items:center; gap:14px;
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:16px; margin-bottom:10px; text-decoration:none; color:inherit;
+  }
+  .tool-card:active{background:var(--bg);}
+  .tool-icon{
+    flex:none; width:44px; height:44px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; background:rgba(14,124,134,0.1);
+  }
+  .tool-text{flex:1; min-width:0;}
+  .tool-title{font-family:'Space Grotesk',sans-serif; font-size:15.5px; font-weight:700; color:var(--ink);}
+  .tool-desc{font-size:12.5px; color:var(--ink-soft); margin-top:2px; line-height:1.35;}
+  .tool-arrow{flex:none; color:var(--teal); font-size:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="eyebrow">Pool Tools</div>
+    <h1>What do you need?</h1>
+  </div>
+
+  <div class="section-label">Daily Dosing</div>
+
+  <a class="tool-card" href="https://chunkayseo-ui.github.io/dosing-app/index.html">
+    <div class="tool-icon">💧</div>
+    <div class="tool-text">
+      <div class="tool-title">Dosing Lookup</div>
+      <div class="tool-desc">Select pool, FC &amp; PH — get the Chlorine/Acid amount to add</div>
+    </div>
+    <div class="tool-arrow">→</div>
+  </a>
+
+  <a class="tool-card" href="https://chunkayseo-ui.github.io/dosing-app/pool-history.html">
+    <div class="tool-icon">📊</div>
+    <div class="tool-text">
+      <div class="tool-title">Water Test History</div>
+      <div class="tool-desc">Today's readings, attendance, and trends for each pool</div>
+    </div>
+    <div class="tool-arrow">→</div>
+  </a>
+
+  <a class="tool-card" href="https://chunkayseo-ui.github.io/dosing-app/dosing-route.html">
+    <div class="tool-icon">🗺️</div>
+    <div class="tool-text">
+      <div class="tool-title">Dosing Route</div>
+      <div class="tool-desc">Pool diagrams showing where to walk and test</div>
+    </div>
+    <div class="tool-arrow">→</div>
+  </a>
+
+  <div class="section-label">Maintenance</div>
+
+  <a class="tool-card" href="https://chunkayseo-ui.github.io/tasklists/index.html">
+    <div class="tool-icon">✅</div>
+    <div class="tool-text">
+      <div class="tool-title">Task List</div>
+      <div class="tool-desc">Daily maintenance checklist</div>
+    </div>
+    <div class="tool-arrow">→</div>
+  </a>
+
+  <a class="tool-card" href="https://chunkayseo-ui.github.io/tasklists/dosing-round-tracker.html">
+    <div class="tool-icon">🔄</div>
+    <div class="tool-text">
+      <div class="tool-title">Dosing Round Tracker</div>
+      <div class="tool-desc">Track completed dosing rounds</div>
+    </div>
+    <div class="tool-arrow">→</div>
+  </a>
+
+  <a class="tool-card" href="https://chunkayseo-ui.github.io/tasklists/overview.html">
+    <div class="tool-icon">🧭</div>
+    <div class="tool-text">
+      <div class="tool-title">Overview</div>
+      <div class="tool-desc">All outlets at a glance</div>
+    </div>
+    <div class="tool-arrow">→</div>
+  </a>
+
+</div>
+
+<script>
+  const tg = window.Telegram ? window.Telegram.WebApp : null;
+  if (tg) { tg.ready(); tg.expand(); }
+  document.querySelectorAll('.tool-card').forEach(card => {
+    card.addEventListener('click', () => { if (tg) tg.HapticFeedback.impactOccurred('light'); });
+  });
+</script>
+</body>
+</html>
