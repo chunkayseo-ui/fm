@@ -85,18 +85,25 @@ h1{font-size:19px;margin:0 0 2px}
 .on-white{background:#f6f7ef;box-shadow:0 0 14px 3px rgba(246,247,239,.7)}
 
 /* rotary selector */
+/* MAN-OFF-AUTO selector: black bezel with a flat lever and a white marker */
 .knob{
-  width:40px;height:40px;border-radius:50%;
-  background:radial-gradient(circle at 34% 30%,#5a5e61,#1a1c1e 70%);
-  border:2px solid #0e0f10; position:relative; cursor:pointer;
-  box-shadow:0 2px 5px rgba(0,0,0,.4);
+  width:42px;height:42px;border-radius:50%;
+  background:radial-gradient(circle at 50% 42%,#37393c 0%,#191a1c 58%,#0a0b0c 100%);
+  border:1px solid #060707; position:relative; cursor:pointer;
+  box-shadow:0 3px 7px rgba(0,0,0,.5), inset 0 1px 2px rgba(255,255,255,.14);
 }
 .knob i{
-  position:absolute;left:50%;top:50%;width:5px;height:19px;
-  background:#101112;border-radius:3px;transform-origin:50% 2px;
-  margin-left:-2.5px;margin-top:-2px;
-  box-shadow:0 0 0 1px rgba(255,255,255,.18);
+  position:absolute;left:50%;top:50%;width:15px;height:40px;
+  margin-left:-7.5px;margin-top:-20px;border-radius:4px;
+  background:linear-gradient(95deg,#303235 0%,#161719 42%,#0c0d0e 100%);
+  box-shadow:0 2px 4px rgba(0,0,0,.55);
+  transform-origin:50% 50%;
   transition:transform .18s ease;
+}
+.knob i::after{
+  content:"";position:absolute;left:50%;top:5px;width:5px;height:14px;
+  margin-left:-2.5px;border-radius:2px;background:#f4f5f0;
+  box-shadow:0 0 1px rgba(0,0,0,.5);
 }
 .knobwrap{display:flex;flex-direction:column;align-items:center;gap:3px}
 .knobtag{font-size:8.5px;font-weight:700;color:#1d1f21;letter-spacing:.06em}
@@ -331,7 +338,7 @@ function dialSvg(i,label){
   '<rect x="7" y="8" width="110" height="304" rx="3" fill="#e9eae6" stroke="#aeb1ad"/>'+
   '<path d="M24 186 V58 M19 66 L24 56 L29 66" fill="none" stroke="#6a6d6a" stroke-width="2"/>'+
   '<path d="M14 184 L14 208 L34 196 Z" fill="#5c5f5c"/>'+
-  '<text x="10" y="232" font-size="13" font-family="Arial" fill="#3b3e3b">auto</text>'+
+  '<text x="24" y="44" text-anchor="middle" font-size="13" font-family="Arial" fill="#3b3e3b">auto</text>'+
   '<rect x="44" y="26" width="70" height="196" rx="1" fill="#f2f3ef" stroke="#9fa29e"/>'+
   '<g clip-path="url(#cw'+i+')"><g id="dial'+i+'"></g></g>'+
   '<rect x="44" y="26" width="70" height="196" rx="2" fill="none" stroke="#8d908c"/>'+
