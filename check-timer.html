@@ -338,6 +338,40 @@ var SITES = {
         sch:[{on:'12:00',off:'22:00'}] }
     ]
   },
+  /* Tengah has two control panels. Each is listed separately, because a
+     technician stands in front of one panel at a time. */
+  TENGAH1: {
+    name:'Tengah — Panel 1',
+    supply:'MAIN INCOMING LIGHTS',
+    note:'Panel 1 of 2 — two pumps, one digital timer each',
+    heatPumps:0,
+    timers:[
+      { label:'Timer 1 — Circulation Pump-1', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump-1'], sch:[{on:'03:00',off:'13:00'}] },
+      { label:'Timer 2 — Circulation Pump-2', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump-2'], sch:[{on:'13:00',off:'23:30'}] }
+    ]
+  },
+  /* LCP-2, the heat pump panel: one circulation pump and one heater pump,
+     each on its own digital timer, with different hours at the weekend. */
+  TENGAH2: {
+    name:'Tengah — Panel 2 (heat pump)',
+    supply:'MAIN INCOMING LIGHTS',
+    note:'Panel 2 of 2 — weekday and weekend hours differ',
+    heatPumps:0,
+    timers:[
+      { label:'Timer 1 — Circulation Pump', device:'digital', model:'GIC time switch',
+        note:'Different hours at the weekend — check the day on the display, not just the time.',
+        controls:['Circulation Pump'],
+        sch:[{on:'09:00',off:'19:00',days:[1,2,3,4,5]},
+             {on:'06:00',off:'18:00',days:[0,6]}] },
+      { label:'Timer 2 — Heater Pump', device:'digital', model:'GIC time switch',
+        note:'Different hours at the weekend. Heating only runs while the circulation pump is running.',
+        controls:['Heater Pump'], row:'heater', needsFlow:true,
+        sch:[{on:'12:00',off:'18:00',days:[1,2,3,4,5]},
+             {on:'07:00',off:'16:00',days:[0,6]}] }
+    ]
+  },
   JEOP1: {
     name:'JEOP1',
     heatPumps:2,
@@ -353,7 +387,7 @@ var SITES = {
     ]
   }
 };
-var PENDING = ['CC','DR','Lentor','Tengah','HB','HS','BK','WWW','TPY'];
+var PENDING = ['CC','DR','Lentor','HB','HS','BK','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
