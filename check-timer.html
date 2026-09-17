@@ -439,29 +439,30 @@ function dialSvg(i,label){
 
 function digitalSvg(i,label){
   return '<svg viewBox="0 0 124 320" width="120" aria-label="Digital time switch, '+label+'">'+
-  '<rect x="2" y="2" width="120" height="316" rx="4" fill="#f2f2ef" stroke="#b3b5b1"/>'+
-  '<rect x="9" y="10" width="106" height="20" rx="2" fill="#e2e4e0" stroke="#b9bcb8"/>'+
-  '<text x="62" y="24" text-anchor="middle" font-size="10" font-family="Arial" fill="#5c6064" id="mdl'+i+'"></text>'+
-  '<rect x="12" y="40" width="100" height="104" rx="4" fill="#c3d6bb" stroke="#7d8a78"/>'+
-  '<g id="days'+i+'" font-family="Arial" font-size="7.5" fill="#46523f"></g>'+
+  '<rect x="2" y="2" width="120" height="316" rx="4" fill="#2f3335" stroke="#15181a"/>'+
+  '<rect x="7" y="7" width="110" height="306" rx="3" fill="#3a3f42" stroke="#222628"/>'+
+  '<rect x="12" y="12" width="100" height="18" rx="2" fill="#24282a" stroke="#191c1e"/>'+
+  '<text x="62" y="25" text-anchor="middle" font-size="10" font-family="Arial" fill="#c3c8cb" id="mdl'+i+'"></text>'+
+  '<rect x="12" y="40" width="100" height="104" rx="4" fill="#9fb094" stroke="#141614"/>'+
+  '<g id="days'+i+'" font-family="Arial" font-size="7.5" fill="#20291d"></g>'+
   '<text x="62" y="102" text-anchor="middle" font-family="Arial" font-size="30" font-weight="bold" '+
-    'fill="#1f2a1c" id="lcd'+i+'">--:--</text>'+
-  '<text x="22" y="132" font-family="Arial" font-size="11" font-weight="bold" fill="#1f2a1c" id="lcdmode'+i+'">AUTO</text>'+
-  '<circle cx="92" cy="128" r="6" id="lcdout'+i+'" fill="#7d8a78"/>'+
-  '<text x="102" y="132" font-family="Arial" font-size="9" fill="#46523f">ON</text>'+
-  '<rect x="12" y="158" width="100" height="58" rx="3" fill="#e8e9e5" stroke="#c2c5c0"/>'+
-  '<g font-family="Arial" font-size="9" fill="#3b3e3b" text-anchor="middle">'+
-    '<circle cx="32" cy="176" r="10" fill="#d8dad5" stroke="#aeb1ad"/><text x="32" y="179">menu</text>'+
-    '<circle cx="62" cy="176" r="10" fill="#d8dad5" stroke="#aeb1ad"/><text x="62" y="179">+</text>'+
-    '<circle cx="92" cy="176" r="10" fill="#d8dad5" stroke="#aeb1ad"/><text x="92" y="179">−</text>'+
-    '<circle cx="62" cy="200" r="10" fill="#d8dad5" stroke="#aeb1ad"/><text x="62" y="203">ok</text>'+
+    'fill="#11170f" id="lcd'+i+'">--:--</text>'+
+  '<text x="22" y="132" font-family="Arial" font-size="11" font-weight="bold" fill="#11170f" id="lcdmode'+i+'">AUTO</text>'+
+  '<circle cx="78" cy="128" r="6" id="lcdout'+i+'" fill="#7d8a78"/>'+
+  '<text x="88" y="132" font-family="Arial" font-size="9" fill="#20291d">ON</text>'+
+  '<rect x="12" y="158" width="100" height="58" rx="3" fill="#2a2e30" stroke="#1b1e20"/>'+
+  '<g font-family="Arial" font-size="9" fill="#e6e9ea" text-anchor="middle">'+
+    '<circle cx="32" cy="176" r="10" fill="#4a4f52" stroke="#25292b"/><text x="32" y="179">menu</text>'+
+    '<circle cx="62" cy="176" r="10" fill="#4a4f52" stroke="#25292b"/><text x="62" y="179">+</text>'+
+    '<circle cx="92" cy="176" r="10" fill="#4a4f52" stroke="#25292b"/><text x="92" y="179">−</text>'+
+    '<circle cx="62" cy="200" r="10" fill="#4a4f52" stroke="#25292b"/><text x="62" y="203">ok</text>'+
   '</g>'+
-  '<rect x="12" y="232" width="100" height="26" rx="3" fill="#dcdedb" stroke="#a6a9a5"/>'+
-  '<g id="ts'+i+'"><rect x="44" y="235" width="24" height="20" rx="2" fill="#5a5e60" stroke="#3a3d3f"/></g>'+
+  '<rect x="12" y="232" width="100" height="26" rx="3" fill="#24282a" stroke="#191c1e"/>'+
+  '<g id="ts'+i+'"><rect x="44" y="235" width="24" height="20" rx="2" fill="#8d9296" stroke="#5c6165"/></g>'+
   '<rect x="12" y="232" width="100" height="26" fill="transparent" data-tsw="'+i+'" style="cursor:pointer"/>'+
-  '<text x="22" y="250" font-family="Arial" font-size="12" font-weight="bold" fill="#2b2e30">1</text>'+
-  '<text x="98" y="250" font-family="Arial" font-size="12" font-weight="bold" fill="#2b2e30">0</text>'+
-  '<text x="62" y="276" text-anchor="middle" font-family="Arial" font-size="11" fill="#3b3e3b">auto</text>'+
+  '<text x="22" y="250" font-family="Arial" font-size="12" font-weight="bold" fill="#e6e9ea">1</text>'+
+  '<text x="98" y="250" font-family="Arial" font-size="12" font-weight="bold" fill="#e6e9ea">0</text>'+
+  '<text x="62" y="276" text-anchor="middle" font-family="Arial" font-size="11" fill="#c3c8cb">auto</text>'+
   '</svg>';
 }
 
