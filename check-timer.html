@@ -706,16 +706,20 @@ function thebenSvg(i,label){
   '<circle cx="106" cy="142" r="66" fill="#f8f9fb" stroke="#c4c7c2"/>'+
   '<g id="rdial'+i+'"></g>'+
   '<circle cx="106" cy="142" r="44" fill="#ffffff" stroke="#d3d6d1"/>'+
+  '<g id="rmark'+i+'"></g>'+
   '<circle cx="106" cy="142" r="20" fill="#f6f6f6" stroke="#e4e6e2"/>'+
-  '<rect x="138" y="135" width="16" height="13" rx="2" fill="#f2f3f0" stroke="#b9bcb8"/>'+
-  '<text x="146" y="145" text-anchor="middle" font-family="Arial" font-size="8" fill="#3b3e3b">15</text>'+
-  '<rect x="58" y="135" width="16" height="13" rx="2" fill="#f2f3f0" stroke="#b9bcb8"/>'+
-  '<text x="66" y="145" text-anchor="middle" font-family="Arial" font-size="8" fill="#3b3e3b">21</text>'+
-  '<rect x="98" y="172" width="16" height="13" rx="2" fill="#f2f3f0" stroke="#b9bcb8"/>'+
-  '<text x="106" y="182" text-anchor="middle" font-family="Arial" font-size="8" fill="#3b3e3b">18</text>'+
-  '<line x1="106" y1="142" x2="136" y2="142" stroke="#2b2e30" stroke-width="4" stroke-linecap="round"/>'+
-  '<circle cx="106" cy="142" r="5" fill="#2b2e30"/>'+
-  '<path d="M134 134 L134 150 L146 142 Z" fill="#2b2e30"/>'+
+  '<rect x="138" y="135" width="17" height="14" rx="2" fill="#d8dad6" stroke="#9aa09a"/>'+
+  '<text x="146" y="146" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" '+
+    'fill="#2b2e30" id="w3'+i+'">15</text>'+
+  '<rect x="57" y="135" width="17" height="14" rx="2" fill="#d8dad6" stroke="#9aa09a"/>'+
+  '<text x="65" y="146" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" '+
+    'fill="#2b2e30" id="w9'+i+'">21</text>'+
+  '<rect x="97" y="173" width="17" height="14" rx="2" fill="#d8dad6" stroke="#9aa09a"/>'+
+  '<text x="106" y="184" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" '+
+    'fill="#2b2e30" id="w6'+i+'">18</text>'+
+  '<g id="rhand'+i+'"></g>'+
+  '<circle cx="106" cy="142" r="6" fill="#4a4d50" stroke="#2b2e30"/>'+
+  '<path d="M106 72 L100 80 L112 80 Z" fill="#2b2e30"/>'+
   /* setting knob, top left */
   '<circle cx="42" cy="100" r="17" fill="#e6e8e4" stroke="#bcbfba"/>'+
   '<circle cx="42" cy="100" r="8" fill="#9aa0a0" stroke="#6a6d6a"/>'+
@@ -724,13 +728,10 @@ function thebenSvg(i,label){
   '<text x="24" y="118" font-family="Arial" font-size="7" fill="#5c6165">1 0 1 0</text>'+
   '<path d="M26 122 a20 20 0 0 0 14 10" fill="none" stroke="#7c817c" stroke-width="1.4"/>'+
   /* rider legend as printed on the case: out = 0, in = 1 */
-  '<g>'+
-    '<path d="M176 92 v30" stroke="#5c6165" stroke-width="1.2"/>'+
-    '<rect x="178" y="92" width="9" height="11" fill="none" stroke="#5c6165" stroke-width="1.2"/>'+
-    '<text x="191" y="101" font-family="Arial" font-size="9" fill="#3b3e3b">0</text>'+
-    '<rect x="178" y="108" width="9" height="11" fill="none" stroke="#5c6165" stroke-width="1.2"/>'+
-    '<text x="191" y="117" font-family="Arial" font-size="9" fill="#3b3e3b">1</text>'+
-  '</g>'+
+  '<text x="192" y="78" text-anchor="end" font-family="Arial" font-size="8" fill="#8a908a">'+
+    'rider out = 0 (off)</text>'+
+  '<text x="192" y="89" text-anchor="end" font-family="Arial" font-size="8" fill="#2a4fa8">'+
+    'rider in = 1 (on)</text>'+
   /* manual switch, bottom left */
   '<text x="18" y="196" font-family="Arial" font-size="10" font-weight="bold" fill="#3b3e3b">1</text>'+
   '<circle cx="32" cy="192" r="6" fill="none" stroke="#3b3e3b" stroke-width="1.2"/>'+
@@ -757,8 +758,12 @@ function thebenSvg(i,label){
    Case legend: rider pushed OUT = 0 (off), pushed IN = 1 (on). */
 function drawTheben(i,m){
   var t=S.timers[i], CX=106, CY=142, g='';
-  function pt(mins, r){
-    var a=(-((mins-m)/1440)*360) * Math.PI/180;
+  function pt(mins, r){                       /* now sits at the top mark */
+    var a=(-90 - ((mins-m)/1440)*360) * Math.PI/180;
+    return [CX+r*Math.cos(a), CY+r*Math.sin(a)];
+  }
+  function polar(deg, r){
+    var a=(deg-90)*Math.PI/180;
     return [CX+r*Math.cos(a), CY+r*Math.sin(a)];
   }
   for(var k=0;k<96;k++){
@@ -775,6 +780,33 @@ function drawTheben(i,m){
        'font-family="Arial" font-size="8" fill="#3b3e3b">'+h+'</text>';
   }
   document.getElementById('rdial'+i).innerHTML=g;
+
+  /* hour marks on the inner 12-hour face */
+  var marks='';
+  for(var q=0;q<12;q++){
+    var a1=polar(q*30, 30), a2=polar(q*30, 38);
+    marks+='<line x1="'+a1[0].toFixed(1)+'" y1="'+a1[1].toFixed(1)+'" x2="'+a2[0].toFixed(1)+
+           '" y2="'+a2[1].toFixed(1)+'" stroke="#6a6d6a" stroke-width="'+(q%3===0?2.4:1.4)+'"/>';
+  }
+  document.getElementById('rmark'+i).innerHTML=marks;
+
+  /* long minute hand, short hour hand with a triangular tip */
+  var mins=((Math.round(m)%1440)+1440)%1440, hh=mins/60, mm=mins%60;
+  var mDeg=(mm/60)*360, hDeg=((hh%12)/12)*360;
+  var mTip=polar(mDeg, 40);
+  var hTip=polar(hDeg, 25), hL=polar(hDeg-7, 17), hR=polar(hDeg+7, 17);
+  document.getElementById('rhand'+i).innerHTML=
+    '<line x1="'+CX+'" y1="'+CY+'" x2="'+mTip[0].toFixed(1)+'" y2="'+mTip[1].toFixed(1)+
+      '" stroke="#3b3e3b" stroke-width="3" stroke-linecap="round"/>'+
+    '<path d="M'+hL[0].toFixed(1)+' '+hL[1].toFixed(1)+' L'+hTip[0].toFixed(1)+' '+hTip[1].toFixed(1)+
+      ' L'+hR[0].toFixed(1)+' '+hR[1].toFixed(1)+' Z" fill="#3b3e3b"/>';
+
+  /* the three windows read 3/6/9 before noon and 15/18/21 after it */
+  var pm = mins>=720;
+  document.getElementById('w3'+i).textContent = pm?'15':'3';
+  document.getElementById('w6'+i).textContent = pm?'18':'6';
+  document.getElementById('w9'+i).textContent = pm?'21':'9';
+
   document.getElementById('rmdl'+i).textContent=t.model||'';
   document.getElementById('ts'+i).setAttribute('transform',
     t.tsw==='on' ? 'translate(-28,0)' : 'translate(0,0)');
@@ -934,7 +966,7 @@ function buildCards(){
       (t.device==='theben'
         ? '<span class="dialkey">rider pushed IN = 1 (on)</span><br>'+
           '<span class="dialkey">pushed OUT = 0 (off)</span><br>'+
-          '<span class="dialkey">pointer on the right is now</span>'
+          '<span class="dialkey">long hand = minutes · short hand = hours</span>'
         : t.device==='round'
         ? '<span class="dialkey">segment pushed OUT to the rim = on</span><br>'+
           '<span class="dialkey">pushed IN to the centre = off</span><br>'+
