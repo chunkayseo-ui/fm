@@ -161,6 +161,12 @@ input[type=number]{width:70px}
 .rm{float:right;font:inherit;font-size:11px;padding:2px 7px;border:1px solid var(--line);
   background:transparent;color:var(--muted);border-radius:6px;cursor:pointer}
 .setline{font-size:14px;margin-bottom:5px}
+.prow{border-left:3px solid var(--line);padding-left:9px;margin-bottom:12px}
+.dchips{display:flex;flex-wrap:wrap;gap:4px}
+.dchip{font:inherit;font-size:11.5px;padding:4px 8px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--line);background:transparent;color:var(--muted)}
+.dchip.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.dchip.wide{border-style:dashed;color:var(--accent);border-color:var(--accent);background:transparent}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .logrow{border-top:1px solid var(--line);padding:9px 0;font-size:13px;line-height:1.5}
 .logrow:first-child{border-top:0}
@@ -614,6 +620,7 @@ function runState(m, d){
   return {run:out, flow:flow};
 }
 var DAYSH=['SU','MO','TU','WE','TH','FR','SA'];
+var DAYFULL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function dayWord(list){
   if(!list) return '';
   var s=list.slice().sort().join();
@@ -627,7 +634,7 @@ var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
 
 function fmtSch(sch){
   return sch.length ? sch.map(function(w){
-    return w.on+'–'+w.off+(w.days?' ('+dayWord(w.days)+')':'');
+    return w.on+'–'+w.off+' ('+(w.days?dayWord(w.days):'Mon–Sun')+')';
   }).join(', ') : 'none set';
 }
 
@@ -646,12 +653,24 @@ function drawSchedules(i){
     box.innerHTML=h; return;
   }
   p.sch.forEach(function(w,j){
-    h+='<div class="row"><label>ON</label>'+
+    h+='<div class="prow">'+
+       (p.device==='digital' ? '<div class="dw" style="margin-bottom:4px">Program '+(j+1)+'</div>' : '')+
+       '<div class="row"><label>ON</label>'+
        '<input type="time" data-p="'+i+'" data-j="'+j+'" data-f="on" value="'+w.on+'">'+
        '<label>OFF</label>'+
        '<input type="time" data-p="'+i+'" data-j="'+j+'" data-f="off" value="'+w.off+'">'+
        (p.sch.length>1?'<button class="del" data-del="'+i+'-'+j+'">Remove</button>':'')+
        '</div>';
+    if(p.device==='digital'){
+      h+='<div class="row"><span class="lab">Days</span><span class="dchips">';
+      [1,2,3,4,5,6,0].forEach(function(d){
+        var on = !w.days || w.days.indexOf(d)>=0;
+        h+='<button class="dchip'+(on?' sel':'')+'" data-day="'+i+'-'+j+'-'+d+'">'+
+           DAYFULL[d]+'</button>';
+      });
+      h+='<button class="dchip wide" data-day="'+i+'-'+j+'-all">Every day</button></span></div>';
+    }
+    h+='</div>';
   });
   h+='<div class="row"><button class="add" data-add="'+i+'">+ Add ON period</button></div>'+
      '<div class="row"><span class="lab">Your name</span>'+
@@ -894,13 +913,31 @@ document.addEventListener('click', function(e){
   var ed=e.target.closest('[data-edit]');
   if(ed){ var ei=+ed.dataset.edit;
     EDIT[ei]=true; BEFORE[ei]=fmtSch(S.timers[ei].sch);
-    BEFORE['raw'+ei]=S.timers[ei].sch.map(function(w){ return {on:w.on, off:w.off}; });
+    BEFORE['raw'+ei]=S.timers[ei].sch.map(function(w){
+      return {on:w.on, off:w.off, days:(w.days?w.days.slice():null)}; });
     drawSchedules(ei); return; }
 
   var ce=e.target.closest('[data-canceledit]');
   if(ce){ var ci=+ce.dataset.canceledit;
-    S.timers[ci].sch=BEFORE['raw'+ci].map(function(w){ return {on:w.on, off:w.off}; });
+    S.timers[ci].sch=BEFORE['raw'+ci].map(function(w){
+      return {on:w.on, off:w.off, days:(w.days?w.days.slice():null)}; });
     EDIT[ci]=false; drawSchedules(ci); render(); return; }
+
+  var dy=e.target.closest('[data-day]');
+  if(dy){
+    var q=dy.dataset.day.split('-'), ti=+q[0], pj=+q[1], w=S.timers[ti].sch[pj];
+    if(q[2]==='all'){ w.days=null; }
+    else{
+      var d=+q[2];
+      var cur = w.days ? w.days.slice() : [0,1,2,3,4,5,6];
+      var at=cur.indexOf(d);
+      if(at>=0){ if(cur.length===1) return; cur.splice(at,1); }
+      else cur.push(d);
+      cur.sort();
+      w.days = (cur.length===7) ? null : cur;
+    }
+    drawSchedules(ti); render(); return;
+  }
 
   var se=e.target.closest('[data-savedit]');
   if(se){ var si=+se.dataset.savedit;
@@ -926,7 +963,7 @@ document.addEventListener('click', function(e){
   var ad=e.target.closest('[data-add]');
   if(ad){
     var ai=+ad.dataset.add;
-    S.timers[ai].sch.push({on:'00:00',off:'06:00'});
+    S.timers[ai].sch.push({on:'00:00',off:'06:00',days:null});
     drawSchedules(ai); render(); return;
   }
   var b=e.target.closest('[data-press]');
