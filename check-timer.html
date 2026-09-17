@@ -58,6 +58,7 @@ h1{font-size:19px;margin:0 0 2px}
 .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;align-items:center}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:58%;margin:0 auto}
 .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;width:40%;margin:0 auto}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:58%;margin:0 auto}
 .htitle{display:grid;grid-template-columns:3fr 2fr;gap:5px;margin-bottom:4px}
 .titlebar{margin:0 0 4px}
 .titlebar.span{margin-left:16.6%}
@@ -374,6 +375,35 @@ var SITES = {
              {on:'07:00',off:'16:00',days:[0,6]}] }
     ]
   },
+  /* Six circulation pumps, each on its own Hager roller timer. Pumps 2 and 5 are
+     Pumps 2, 5 and 6 are kept off at the selector and have no timer set. The heat pumps have no
+     timer at all — they follow their OFF-ON switch and the circulation. */
+  HS: {
+    name:'HS',
+    supply:'INCOMING SUPPLY LIGHT',
+    note:'Six pumps · pumps 2, 5 and 6 kept off, three timers in use',
+    heatPumps:2,
+    heatStyle:'runstop',
+    timers:[
+      { label:'Timer 1 — Circulation Pump 1', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 1'], sch:[{on:'07:00',off:'21:00'}] },
+      { label:'Circulation Pump 2 — no timer', noTimer:true, startSel:'OFF',
+        note:'Kept permanently off at the selector. No timer set. '+
+             'The door label still reads 10PM–6AM from when it was in use.',
+        controls:['Circulation Pump 2'], sch:[] },
+      { label:'Timer 3 — Circulation Pump 3', device:'hager', model:'Hager EH011',
+        note:'Times still to be confirmed.',
+        controls:['Circulation Pump 3'], sch:[] },
+      { label:'Timer 4 — Circulation Pump 4', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 4'], sch:[{on:'08:00',off:'19:00'}] },
+      { label:'Circulation Pump 5 — no timer', noTimer:true, startSel:'OFF',
+        note:'Kept permanently off at the selector. No timer set.',
+        controls:['Circulation Pump 5'], sch:[] },
+      { label:'Circulation Pump 6 — no timer', noTimer:true, startSel:'OFF',
+        note:'Kept permanently off at the selector. No timer set.',
+        controls:['Circulation Pump 6'], sch:[] }
+    ]
+  },
   JEOP1: {
     name:'JEOP1',
     heatPumps:2,
@@ -389,7 +419,10 @@ var SITES = {
     ]
   }
 };
-var PENDING = ['CC','DR','Lentor','HB','HS','BK','WWW','TPY'];
+/* The order pools appear in the picker. Anything not listed falls in after. */
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS'];
+
+var PENDING = ['CC','DR','Lentor','HB','BK','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
@@ -408,7 +441,7 @@ function loadSite(id){
     var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
             controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
-            row:(t.row||''),
+            row:(t.row||''), noTimer:!!t.noTimer, startSel:(t.startSel||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
                changes the times only, so they are carried across */
@@ -418,13 +451,15 @@ function loadSite(id){
             })};
   });
 
+  S.heatStyle = cfg.heatStyle || 'on';
   S.pumps=[];
   S.timers.forEach(function(t,ti){
     if(t.controls===null && t.panelOff) return;
     var names = t.controls || [t.label];
     names.forEach(function(nm){
       S.pumps.push({label:nm, t:ti, row:(t.row||''), invert:false, needsFlow:t.needsFlow,
-                    flow:!t.needsFlow, sel:'AUTO', tripped:false, manRun:true});
+                    flow:!t.needsFlow, noTimer:!!t.noTimer,
+                    sel:(t.startSel||'AUTO'), tripped:false, manRun:(t.startSel!=='OFF')});
     });
     (t.controlsOff||[]).forEach(function(nm){
       S.pumps.push({label:nm, t:ti, row:(t.row||''), invert:true, needsFlow:false,
@@ -480,12 +515,20 @@ function buildPanel(){
     html += '<div class="block"'+(k===S.heatCount-1?' style="margin-bottom:4px"':'')+'>'+
       '<div class="strip titlebar" style="width:52%;margin:0 auto 4px">HEAT PUMP'+
         (S.heatCount>1?' '+(k+1):'')+'</div>'+
-      '<div class="grid2"><div class="strip">OFF-ON</div><div class="strip">ON</div></div>'+
-      '<div class="grid2">'+
-        '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="heat'+k+'"><i></i></div>'+
-          '<div class="knobtag" id="kh'+k+'tag">ON</div></div></div>'+
-        '<div class="cell"><div class="lamp" id="hplamp'+k+'"></div></div>'+
-      '</div></div>';
+      (S.heatStyle==='runstop'
+        ? '<div class="grid3"><div class="strip">OFF-ON</div><div class="strip">RUN</div>'+
+          '<div class="strip">STOP</div></div>'+
+          '<div class="grid3">'+
+          '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="heat'+k+'"><i></i></div>'+
+            '<div class="knobtag" id="kh'+k+'tag">ON</div></div></div>'+
+          '<div class="cell"><div class="lamp" id="hplamp'+k+'"></div></div>'+
+          '<div class="cell"><div class="lamp" id="hpstop'+k+'"></div></div></div>'
+        : '<div class="grid2"><div class="strip">OFF-ON</div><div class="strip">ON</div></div>'+
+          '<div class="grid2">'+
+          '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="heat'+k+'"><i></i></div>'+
+            '<div class="knobtag" id="kh'+k+'tag">ON</div></div></div>'+
+          '<div class="cell"><div class="lamp" id="hplamp'+k+'"></div></div></div>')+
+      '</div>';
   }
   document.getElementById('panelPumps').innerHTML = html;
 }
@@ -620,6 +663,10 @@ function sendPhoto(i, file){
 
 function buildCards(){
   document.getElementById('timerCards').innerHTML = S.timers.map(function(t,i){
+    if(t.noTimer){
+      return '<div class="card"><h2>'+t.label+'</h2>'+
+        '<p class="mini">'+(t.note||'No timer fitted.')+'</p></div>';
+    }
     var names = (t.controls||[]).concat(t.controlsOff||[]);
     var drives = names.length>1 || t.controlsOff
       ? '<p class="mini" style="margin:-4px 0 10px">Controls '+names.join(t.controlsOff?' and ':' and ')+
@@ -932,7 +979,9 @@ function render(){
 
   for(var k=0;k<S.heatCount;k++){
     var hpOn = (S.heat[k]==='ON' && r.flow);
-    setLamp('hplamp'+k, hpOn?'on-green':'off-green');
+    setLamp('hplamp'+k, hpOn?(S.heatStyle==='runstop'?'on-teal':'on-green')
+                            :(S.heatStyle==='runstop'?'off-teal':'off-green'));
+    if(S.heatStyle==='runstop') setLamp('hpstop'+k, hpOn?'off-red':'on-red');
     document.getElementById('kh'+k+'tag').textContent=S.heat[k];
     document.querySelector('[data-knob="heat'+k+'"] i').style.transform='rotate('+ANG[S.heat[k]]+'deg)';
   }
@@ -1095,7 +1144,9 @@ loadSite(SITES[last]?last:'JEIP1');
 
 (function(){
   var sel=document.getElementById('site'), h='';
-  Object.keys(SITES).forEach(function(k){
+  var keys=ORDER.filter(function(k){ return SITES[k]; })
+    .concat(Object.keys(SITES).filter(function(k){ return ORDER.indexOf(k)<0; }));
+  keys.forEach(function(k){
     h+='<option value="'+k+'"'+(k===S.site?' selected':'')+'>'+SITES[k].name+'</option>';
   });
   PENDING.forEach(function(n){
