@@ -176,15 +176,8 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 .tl span{position:absolute;top:0;bottom:0;background:var(--accent);opacity:.8}
 .tl b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#e2413c}
 .ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
-.state{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.55}
+.state{font-size:12.5px;color:var(--muted);margin-top:6px}
 .state b{color:var(--fg)}
-.clock small{font-size:14px;font-weight:400;color:var(--muted);margin-left:6px}
-.dw{font-size:11px;color:var(--muted);letter-spacing:.04em;margin-left:4px}
-.drives{font-size:12.5px;line-height:1.55;margin:0 0 8px}
-.tlname{font-size:11.5px;color:var(--muted);margin-top:7px}
-.warn{color:#b4611a}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .warn{color:#e2a15c}}
-:root[data-theme="dark"] .warn{color:#e2a15c}
 @media(max-width:420px){
   .lamp{width:32px;height:32px}.knob{width:34px;height:34px}.cell{height:46px}
   .strip{font-size:8px;letter-spacing:.04em}
@@ -200,6 +193,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
     <span class="mini" id="siteNote"></span>
   </div>
   <p class="mini" id="ovrNote" style="display:none;margin:-6px 0 14px"></p>
+  <p class="mini" id="pendNote" style="display:none;margin:-6px 0 14px"></p>
 
   <!-- ================= PANEL ================= -->
   <div class="panel">
@@ -208,7 +202,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 
       <!-- MAIN INCOMING -->
       <div class="block">
-        <div class="strip titlebar" id="supplyTitle" style="width:58%;margin:0 auto 4px">MAIN INCOMING LIGHT</div>
+        <div class="strip titlebar" style="width:58%;margin:0 auto 4px">MAIN INCOMING LIGHT</div>
         <div class="grid3">
           <div class="strip">L1</div><div class="strip">L2</div><div class="strip">L3</div>
         </div>
@@ -231,7 +225,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
     <div class="card">
       <h2>Clock</h2>
       <div class="row" style="justify-content:space-between">
-        <div class="clock"><span id="clockTxt">--:--</span><small id="clockDay"></small></div>
+        <div class="clock" id="clockTxt">--:--</div>
         <div class="seg">
           <button id="mLive" class="sel">Live now</button>
           <button id="mManual">Scrub time</button>
@@ -240,9 +234,6 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
       <div id="scrubWrap" style="display:none">
         <input type="range" id="scrub" min="0" max="1435" step="5" value="480">
         <div class="ticks"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
-        <div class="row" style="margin-top:10px">
-          <span class="lab">Day</span><select id="dayPick"></select>
-        </div>
       </div>
     </div>
 
@@ -257,7 +248,20 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 
     <div class="card">
       <h2>How it behaves</h2>
-      <p class="mini" id="howto"></p>
+      <p class="mini">
+        <b>AUTO</b> — pump follows its timer periods. <b>MAN</b> — runs continuously, START/STOP buttons take over.
+        <b>OFF</b> — dead, STOP lamp lit.<br>
+        The white STOP lamp logic: RUN lamp lit while running, red STOP lamp lit while stopped.
+        Heat pump ON lamp only lights when its selector is ON <i>and</i> at least one circulation pump is running
+        (no flow, no heating).<br>
+        Tap a <b>TRIP</b> lamp to simulate an overload trip — the pump drops out until you tap it again to reset.
+      </p>
+      <p class="mini" style="margin-top:10px">
+        <b>The dial beside each timer</b> is what the Hager EH011 in the plant room should look like right now,
+        with these ON periods set. Hold your phone next to the real unit and compare: the hour against the
+        ▶ pointer should match, and the blue tappets should be pushed in over the same hours.
+        If the real dial reads a different time, the pump is running to the wrong clock — correct it and note it down.
+      </p>
     </div>
   </div>
 </div>
@@ -275,7 +279,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
    ================================================================ */
 var SITES = {
   JEIP1: {
-    name:'JEIP1',
+    name:'JE — Indoor Pool 1',
     heatPumps:1,
     timers:[
       { label:'Circulation Pump 1', device:'hager', model:'Hager EH011',
@@ -284,27 +288,8 @@ var SITES = {
         sch:[{on:'15:00',off:'00:00'}] }
     ]
   },
-  /* One time switch runs both circulation pumps: Pump 1 while the contact is
-     closed, Pump 2 while it is open, so one of them is always circulating and
-     the two never run together. The heat pump has its own time switch and its
-     own full row on the door, and different hours at the weekend. */
-  JEIP2: {
-    name:'JEIP2',
-    supply:'SUPPLY ON LIGHTS',
-    note:'One timer runs both circulation pumps — duty and standby',
-    heatPumps:0,
-    timers:[
-      { label:'Timer 1 — circulation pumps (duty changeover)', device:'digital', model:'GIC time switch',
-        controls:['Circulation Pump 1'], controlsOff:['Circulation Pump 2'],
-        sch:[{on:'03:00',off:'06:00'},{on:'18:10',off:'00:00'}] },
-      { label:'Timer 2 — heat pump', device:'digital', model:'GIC time switch',
-        controls:['Heat Pump'], needsFlow:true,
-        sch:[{on:'12:00',off:'18:00',days:[1,2,3,4,5]},
-             {on:'08:00',off:'17:00',days:[0,6]}] }
-    ]
-  },
   JEOP1: {
-    name:'JEOP1',
+    name:'JE — Outdoor Pool 1',
     heatPumps:2,
     selector:'AUTO OFF MAN',
     tripLabel:'TAIP',
@@ -318,11 +303,10 @@ var SITES = {
     ]
   }
 };
-var PENDING = ['JEOP2',
+var PENDING = ['JE — Indoor Pool 2','JE — Outdoor Pool 2',
   'CC','DR','Lentor','Tengah','HB','HS','BK','WWW','TPY'];
 
-var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
-          timers:[], pumps:[], heat:[], heatCount:0,
+var S = { mode:'live', manual:480, site:'JEIP1', timers:[], pumps:[], heat:[], heatCount:0,
           selLabel:'MAN-OFF-AUTO', tripLabel:'TRIP' };
 
 function loadSite(id){
@@ -337,14 +321,8 @@ function loadSite(id){
   S.timers = cfg.timers.map(function(t,ti){
     var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
-            controls:(t.controls||null), controlsOff:(t.controlsOff||null),
-            needsFlow:!!t.needsFlow, tsw:'auto',
-            /* days come from the pool's saved settings; an edit on the phone
-               changes the times only, so they are carried across */
-            sch:sch.map(function(w,j){
-              var src=t.sch[j];
-              return {on:w.on, off:w.off, days:(w.days||(src&&src.days)||null)};
-            })};
+            controls:(t.controls||null), tsw:'auto',
+            sch:sch.map(function(w){ return {on:w.on, off:w.off}; })};
   });
 
   S.pumps=[];
@@ -352,23 +330,14 @@ function loadSite(id){
     if(t.controls===null && t.panelOff) return;
     var names = t.controls || [t.label];
     names.forEach(function(nm){
-      S.pumps.push({label:nm, t:ti, invert:false, needsFlow:t.needsFlow,
-                    flow:!t.needsFlow, sel:'AUTO', tripped:false, manRun:true});
-    });
-    (t.controlsOff||[]).forEach(function(nm){
-      S.pumps.push({label:nm, t:ti, invert:true, needsFlow:false,
-                    flow:true, sel:'AUTO', tripped:false, manRun:true});
+      S.pumps.push({label:nm, t:ti, sel:'AUTO', tripped:false, manRun:true});
     });
   });
 
   S.heat=[]; for(var k=0;k<S.heatCount;k++) S.heat.push('ON');
 
   try{ localStorage.setItem('timerSite', id); }catch(e){}
-  var sup=document.getElementById('supplyTitle');
-  if(sup) sup.textContent = cfg.supply || 'MAIN INCOMING LIGHT';
-  var nt=document.getElementById('siteNote');
-  if(nt) nt.textContent = cfg.note || 'Timer settings for this pool';
-  buildPanel(); buildCards(); drawOvrNote(); drawHistory(); buildHowTo();
+  buildPanel(); buildCards(); drawOvrNote(); drawHistory();
 }
 
 /* ---------- markup built from the config ---------- */
@@ -433,7 +402,7 @@ function digitalSvg(i,label){
   '<rect x="9" y="10" width="106" height="20" rx="2" fill="#e2e4e0" stroke="#b9bcb8"/>'+
   '<text x="62" y="24" text-anchor="middle" font-size="10" font-family="Arial" fill="#5c6064" id="mdl'+i+'"></text>'+
   '<rect x="12" y="40" width="100" height="104" rx="4" fill="#c3d6bb" stroke="#7d8a78"/>'+
-  '<g id="days'+i+'" font-family="Arial" font-size="7.5" fill="#46523f"></g>'+
+  '<g id="days'+i+'" font-family="Arial" font-size="9" fill="#46523f"></g>'+
   '<text x="62" y="102" text-anchor="middle" font-family="Arial" font-size="30" font-weight="bold" '+
     'fill="#1f2a1c" id="lcd'+i+'">--:--</text>'+
   '<text x="22" y="132" font-family="Arial" font-size="11" font-weight="bold" fill="#1f2a1c" id="lcdmode'+i+'">AUTO</text>'+
@@ -455,24 +424,24 @@ function digitalSvg(i,label){
   '</svg>';
 }
 
-function drawDigital(i,m,today){
-  var t=S.timers[i];
-  if(today===undefined) today=nowDay();
+function drawDigital(i,m){
+  var p=S.timers[i];
   document.getElementById('lcd'+i).textContent=fmt(m);
-  document.getElementById('mdl'+i).textContent=t.model||'Digital time switch';
-  var h='';
-  for(var k=0;k<7;k++){
-    var d=(k+1)%7, x=22+k*13;            /* the unit prints MO…SU */
+  document.getElementById('mdl'+i).textContent=p.model||'Digital time switch';
+  var names=['SU','MO','TU','WE','TH','FR','SA'], today=new Date().getDay(), h='';
+  for(var d=0;d<7;d++){
+    var x=20+d*14;
     h+='<text x="'+x+'" y="56" text-anchor="middle" opacity="'+(d===today?1:0.35)+'" '+
-       'font-weight="'+(d===today?'bold':'normal')+'">'+DAYSH[d]+'</text>';
+       'font-weight="'+(d===today?'bold':'normal')+'">'+names[d]+'</text>';
     if(d===today) h+='<rect x="'+(x-7)+'" y="60" width="14" height="2" fill="#1f2a1c"/>';
   }
   document.getElementById('days'+i).innerHTML=h;
-  var on=contact(t,m,today);
-  document.getElementById('lcdout'+i).setAttribute('fill', on?'#1f2a1c':'#7d8a78');
-  document.getElementById('lcdmode'+i).textContent = t.tsw==='on' ? 'MAN' : 'AUTO';
+  var run=running(p,m);
+  document.getElementById('lcdout'+i).setAttribute('fill', run?'#1f2a1c':'#7d8a78');
+  document.getElementById('lcdmode'+i).textContent =
+    p.tsw==='on' ? 'ON' : (p.sel==='OFF' ? 'OFF' : 'AUTO');
   document.getElementById('ts'+i).setAttribute('transform',
-    t.tsw==='on' ? 'translate(-32,0)' : 'translate(0,0)');
+    p.tsw==='on' ? 'translate(-32,0)' : 'translate(0,0)');
 }
 
 /* Paste the same Apps Script relay address the dosing photos use.
@@ -533,10 +502,8 @@ function sendPhoto(i, file){
 
 function buildCards(){
   document.getElementById('timerCards').innerHTML = S.timers.map(function(t,i){
-    var names = (t.controls||[]).concat(t.controlsOff||[]);
-    var drives = names.length>1 || t.controlsOff
-      ? '<p class="mini" style="margin:-4px 0 10px">Controls '+names.join(t.controlsOff?' and ':' and ')+
-        (t.controlsOff?' — one at a time':'')+'</p>' : '';
+    var drives = t.controls ? '<p class="mini" style="margin:-4px 0 10px">Controls '+
+        t.controls.join(' and ')+'</p>' : '';
     return '<div class="card"><h2>'+t.label+'</h2>'+drives+'<div class="tpair"><div>'+
       '<div class="tdial">'+(t.device==='digital'?digitalSvg(i,t.label):dialSvg(i,t.label))+'</div>'+
       '<p class="dialnote">Should read <b id="dn'+i+'">--:--</b><br>'+
@@ -545,9 +512,8 @@ function buildCards(){
         : '<span class="dialkey">left = running</span><br>'+
           '<span class="dialkey">knob in the middle = auto · at 1 = always on</span>')+
       '</p></div>'+
-      '<div class="tside"><div class="drives" id="dr'+i+'"></div>'+
-      '<div id="sch'+i+'"></div>'+
-      '<div id="tl'+i+'"></div>'+
+      '<div class="tside"><div id="sch'+i+'"></div>'+
+      '<div class="tl" id="tl'+i+'"></div>'+
       '<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'+
       '<div class="state" id="st'+i+'"></div>'+
       (RELAY_URL ? '<div class="photobox">'+
@@ -571,71 +537,34 @@ function nowMin(){
   if(S.mode==='manual') return S.manual;
   var d=new Date(); return d.getHours()*60+d.getMinutes();
 }
-function nowDay(){ return S.mode==='manual' ? S.day : new Date().getDay(); }
-/* A period can be limited to certain days. When it crosses midnight the days
-   listed are the days it STARTS on, so the tail after midnight belongs to the
-   day before — the way the time switch itself counts it. */
-function inWindow(w, m, d){
-  var a=toMin(w.on), b=toMin(w.off), days=w.days||null;
+function inWindow(w, m){
+  var a=toMin(w.on), b=toMin(w.off);
   if(a===b) return false;
-  function ok(x){ return !days || days.indexOf(x)>=0; }
-  if(d===undefined) d=nowDay();
-  if(a<b) return (m>=a && m<b) && ok(d);
-  if(m>=a) return ok(d);
-  if(m<b)  return ok((d+6)%7);
-  return false;
+  return a<b ? (m>=a && m<b) : (m>=a || m<b);
 }
-function timerOn(p, m, d){ for(var i=0;i<p.sch.length;i++){ if(inWindow(p.sch[i],m,d)) return true; } return false; }
-function contact(t, m, d){
+function timerOn(p, m){ for(var i=0;i<p.sch.length;i++){ if(inWindow(p.sch[i],m)) return true; } return false; }
+function contact(t, m){
   if(t.tsw==='on') return true;
-  return timerOn(t, m, d);
+  return timerOn(t, m);
 }
-/* what the timer asks of this row, before the selector and the flow rule */
-function demand(p, m, d){
-  var on=contact(S.timers[p.t], m, d);
-  return p.invert ? !on : on;
-}
-function running(p, m, d){
+function running(p, m){
   if(p.tripped) return false;
   if(p.sel==='OFF') return false;
   if(p.sel==='MAN') return p.manRun;
-  return demand(p, m, d);
-}
-/* Circulation first, then anything that cannot run without flow. */
-function runState(m, d){
-  var out=S.pumps.map(function(p){ return running(p,m,d); });
-  var flow=S.pumps.some(function(p,i){ return p.flow && out[i]; });
-  S.pumps.forEach(function(p,i){ if(p.needsFlow && !flow) out[i]=false; });
-  return {run:out, flow:flow};
-}
-var DAYSH=['SU','MO','TU','WE','TH','FR','SA'];
-function dayWord(list){
-  if(!list) return '';
-  var s=list.slice().sort().join();
-  if(list.length===7) return 'every day';
-  if(s===[1,2,3,4,5].join()) return 'Mon–Fri';
-  if(s===[0,6].join()) return 'Sat–Sun';
-  return list.slice().sort().map(function(d){ return DAYSH[d]; }).join(' ');
+  return contact(S.timers[p.t], m);
 }
 
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
 
 function fmtSch(sch){
-  return sch.length ? sch.map(function(w){
-    return w.on+'–'+w.off+(w.days?' ('+dayWord(w.days)+')':'');
-  }).join(', ') : 'none set';
+  return sch.length ? sch.map(function(w){ return w.on+'–'+w.off; }).join(', ') : 'none set';
 }
 
 function drawSchedules(i){
   var box=document.getElementById('sch'+i), p=S.timers[i], h='';
   if(!EDIT[i]){
     h = p.sch.length
-      ? p.sch.map(function(w,j){
-          return '<div class="setline">'+
-            (p.device==='digital' ? '<span class="dw">Step '+(j+1)+'</span> ' : '')+
-            'ON <b>'+w.on+'</b> &nbsp;·&nbsp; OFF <b>'+w.off+'</b>'+
-            (w.days ? '<span class="dw">'+dayWord(w.days)+'</span>' : '')+'</div>';
-        }).join('')
+      ? p.sch.map(function(w){ return '<div class="setline">ON <b>'+w.on+'</b> &nbsp;·&nbsp; OFF <b>'+w.off+'</b></div>'; }).join('')
       : '<p class="mini">No ON period set — the pump stays off on auto.</p>';
     h+='<div class="row" style="margin-top:8px"><button class="apply" data-edit="'+i+'">Edit times</button></div>';
     box.innerHTML=h; return;
@@ -714,33 +643,23 @@ function drawOvrNote(){
   } else el.style.display='none';
 }
 
-/* One bar per row this timer drives, for the day on screen — so a duty/standby
-   pair shows the handover rather than one ambiguous stripe. */
-function drawTimeline(i, m, d){
-  var t=S.timers[i], el=document.getElementById('tl'+i), h='';
-  var mine=S.pumps.filter(function(p){ return p.t===i; });
-  if(!mine.length) mine=[{label:null, t:i, invert:false}];
-  mine.forEach(function(p){
-    var bars='', x=0;
-    while(x<1440){
-      var on = p.invert ? !timerOn(t,x,d) : timerOn(t,x,d);
-      if(!on){ x++; continue; }
-      var st=x;
-      while(x<1440 && (p.invert ? !timerOn(t,x,d) : timerOn(t,x,d))) x++;
-      bars+='<span style="left:'+(st/1440*100)+'%;width:'+((x-st)/1440*100)+'%"></span>';
-    }
-    if(mine.length>1 && p.label) h+='<div class="tlname">'+p.label+(p.invert?' <span class="dw">(runs while the contact is off)</span>':'')+'</div>';
-    h+='<div class="tl">'+bars+'<b style="left:'+(m/1440*100)+'%"></b></div>';
+function drawTimeline(i, m){
+  var p=S.timers[i], el=document.getElementById('tl'+i), h='';
+  p.sch.forEach(function(w){
+    var a=toMin(w.on), b=toMin(w.off);
+    if(a===b) return;
+    if(a<b){ h+=bar(a,b); } else { h+=bar(a,1440)+bar(0,b); }
   });
+  h+='<b style="left:'+(m/1440*100)+'%"></b>';
   el.innerHTML=h;
+  function bar(a,b){ return '<span style="left:'+(a/1440*100)+'%;width:'+((b-a)/1440*100)+'%"></span>'; }
 }
 
 function setLamp(id, cls){ var e=document.getElementById(id); e.className='lamp '+cls; }
 
 /* --- Hager EH011 dial: scale ring seen through the window --- */
-function drawDial(i, m, day){
+function drawDial(i, m){
   var p=S.timers[i], R=175, CY=196, g='', k, a, b;
-  if(day===undefined) day=nowDay();
   function proj(t){
     var d=((t-m+720+2880)%1440)-720, th=d/1440*2*Math.PI;
     return {y:CY+R*Math.sin(th), c:Math.cos(th), bow:(1-Math.cos(th))*7,
@@ -753,7 +672,7 @@ function drawDial(i, m, day){
     if(!a.vis&&!b.vis) continue;
     var y1=Math.min(a.y,b.y), h=Math.abs(b.y-a.y);
     if(h<0.5) continue;
-    var on=timerOn(p, k*15+7, day), c=(a.c+b.c)/2, bw=(a.bow+b.bow)/2;
+    var on=timerOn(p, k*15+7), c=(a.c+b.c)/2, bw=(a.bow+b.bow)/2;
     var x = (on?87:101) + bw*0.35;
     g+='<rect x="'+x.toFixed(1)+'" y="'+(y1+0.35).toFixed(1)+'" width="12" height="'+
        Math.max(h-0.7,0.6).toFixed(1)+'" rx=".8" fill="'+(on?'#33618a':'#41454a')+
@@ -780,12 +699,30 @@ function drawDial(i, m, day){
 }
 
 function render(){
-  var m=nowMin(), d=nowDay(), r=runState(m,d);
+  var m=nowMin();
   document.getElementById('clockTxt').textContent=fmt(m);
-  var cd=document.getElementById('clockDay'); if(cd) cd.textContent=DAYS[d];
 
+  S.timers.forEach(function(t,i){
+    drawTimeline(i,m);
+    if(t.device==='digital') drawDigital(i,m); else drawDial(i,m);
+    document.getElementById('dn'+i).textContent=fmt(m);
+
+    var closed=contact(t,m), st;
+    if(t.tsw==='on'){
+      st='Slider is at <b>1</b> — contact held closed, tappets ignored. Runs 24 h.';
+    } else {
+      st = closed ? 'In timer period — <b>contact closed</b>.' : 'Outside timer period — <b>contact open</b>.';
+      var nx=nextChange(t,m);
+      if(nx!==null) st+=' Next change at <b>'+fmt(nx)+'</b>.';
+      st+=' Runs <b>'+dailyHours(t)+' h</b>/day.';
+    }
+    document.getElementById('st'+i).innerHTML=st;
+  });
+
+  var anyRun=false;
   S.pumps.forEach(function(p,i){
-    var run=r.run[i];
+    var run=running(p,m);
+    if(run) anyRun=true;
     setLamp('run'+i, run?'on-teal':'off-teal');
     setLamp('stp'+i, run?'off-red':'on-red');
     setLamp('trp'+i, p.tripped?'on-amber':'off-amber');
@@ -793,80 +730,23 @@ function render(){
     document.querySelector('[data-knob="'+i+'"] i').style.transform='rotate('+ANG[p.sel]+'deg)';
   });
 
-  S.timers.forEach(function(t,i){
-    drawTimeline(i,m,d);
-    if(t.device==='digital') drawDigital(i,m,d); else drawDial(i,m,d);
-    document.getElementById('dn'+i).textContent=fmt(m)+(t.device==='digital'?' · '+DAYSH[d]:'');
-
-    /* what this timer is doing to its rows right now */
-    var mine=S.pumps.map(function(p,pi){ return {p:p,i:pi}; }).filter(function(x){ return x.p.t===i; });
-    var dr=document.getElementById('dr'+i);
-    if(dr) dr.innerHTML = mine.map(function(x){
-      return '<div>'+x.p.label+' — <b>'+(r.run[x.i]?'running':'stopped')+'</b>'+
-             (x.p.invert?' <span class="dw">standby</span>':'')+'</div>';
-    }).join('');
-
-    var closed=contact(t,m,d), st;
-    if(t.tsw==='on'){
-      st='Held <b>ON</b> by hand — the programme is ignored until it is put back to auto.';
-    } else {
-      st = closed ? 'In timer period — <b>contact closed</b>.' : 'Outside timer period — <b>contact open</b>.';
-      var nx=nextChange(t,m,d);
-      if(nx) st+=' Next change at <b>'+fmt(nx.m)+'</b>'+(nx.sameDay?'':' ('+DAYS[nx.d]+')')+'.';
-      st+=' Closed <b>'+dailyHours(t,d)+' h</b> today.';
-    }
-    var odd=mine.filter(function(x){ return x.p.tripped || x.p.sel!=='AUTO'; });
-    if(odd.length) st+='<br><span class="warn">'+odd.map(function(x){
-      return x.p.label+(x.p.tripped?' is tripped':' selector is at '+x.p.sel);
-    }).join('; ')+' — the timer cannot reach it.</span>';
-    if(!r.flow && mine.some(function(x){ return x.p.needsFlow; }))
-      st+='<br><span class="warn">No circulation pump is running, so this stays off whatever the timer says.</span>';
-    document.getElementById('st'+i).innerHTML=st;
-  });
-
   for(var k=0;k<S.heatCount;k++){
-    var hpOn = (S.heat[k]==='ON' && r.flow);
+    var hpOn = (S.heat[k]==='ON' && anyRun);
     setLamp('hplamp'+k, hpOn?'on-green':'off-green');
     document.getElementById('kh'+k+'tag').textContent=S.heat[k];
     document.querySelector('[data-knob="heat'+k+'"] i').style.transform='rotate('+ANG[S.heat[k]]+'deg)';
   }
 }
 
-function nextChange(p,m,d){
-  var cur=timerOn(p,m,d);
-  for(var k=1;k<=1440*7;k++){
-    var tot=m+k, mm=tot%1440, dd=(d+Math.floor(tot/1440))%7;
-    if(timerOn(p,mm,dd)!==cur) return {m:mm, d:dd, sameDay:Math.floor(tot/1440)===0};
-  }
+function nextChange(p,m){
+  var cur=timerOn(p,m);
+  for(var k=1;k<=1440;k++){ var t=(m+k)%1440; if(timerOn(p,t)!==cur) return t; }
   return null;
 }
-function dailyHours(p,d){
-  var mins=0;
-  for(var t=0;t<1440;t++) if(timerOn(p,t,d)) mins++;
+function dailyHours(p){
+  var mins=0, on=[];
+  for(var t=0;t<1440;t++) if(timerOn(p,t)) mins++;
   return (mins/60).toFixed(1);
-}
-
-function buildHowTo(){
-  var el=document.getElementById('howto'); if(!el) return;
-  var swap=S.pumps.some(function(p){ return p.invert; });
-  var anyDigital=S.timers.some(function(t){ return t.device==='digital'; });
-  var h='<b>AUTO</b> — the pump follows its timer periods. <b>MAN</b> — runs continuously, '+
-        'START/STOP take over. <b>OFF</b> — dead, STOP lamp lit.<br>'+
-        'RUN lamp lit while running, red STOP lamp lit while stopped. A heat pump only runs when '+
-        'at least one circulation pump is running (no flow, no heating).<br>'+
-        'Tap a <b>TRIP</b> lamp to simulate an overload trip — the pump drops out until you tap it again to reset.';
-  if(swap) h+='<br><br><b>One timer, two pumps.</b> The changeover timer runs the duty pump while its '+
-      'contact is closed and the standby pump while it is open, so one pump is always circulating and '+
-      'the two never run together. A pump stopped at the right time is normal here — check the '+
-      '<i>other</i> one is running before calling it a fault.';
-  h+='<br><br><b>The unit beside each timer</b> is what the real one in the plant room should look like now. '+
-     'Hold your phone next to it and compare'+
-     (anyDigital ? ' — the time <i>and</i> the day. Then press the programme button and step through: '+
-                   'each step should read exactly what is listed here.'
-                 : ': the hour against the ▶ pointer should match, and the blue tappets should be pushed '+
-                   'in over the same hours.')+
-     ' If the real one is out, the pool is running to the wrong clock — correct it and note it down below.';
-  el.innerHTML=h;
 }
 
 /* ---- events ---- */
@@ -954,17 +834,9 @@ document.getElementById('mManual').onclick=function(){
   S.mode='manual'; this.classList.add('sel');
   document.getElementById('mLive').classList.remove('sel');
   document.getElementById('scrubWrap').style.display='block';
-  document.getElementById('scrub').value=S.manual;
-  document.getElementById('dayPick').value=String(S.day);
-  render();
+  document.getElementById('scrub').value=S.manual; render();
 };
 document.getElementById('scrub').oninput=function(){ S.manual=+this.value; render(); };
-(function(){
-  var dp=document.getElementById('dayPick'), h='';
-  for(var i=1;i<=7;i++){ var d=i%7; h+='<option value="'+d+'">'+DAYS[d]+'</option>'; }
-  dp.innerHTML=h; dp.value=String(S.day);
-  dp.onchange=function(){ S.day=+this.value; render(); };
-})();
 
 var last=null; try{ last=localStorage.getItem('timerSite'); }catch(e){}
 loadSite(SITES[last]?last:'JEIP1');
@@ -974,9 +846,22 @@ loadSite(SITES[last]?last:'JEIP1');
   Object.keys(SITES).forEach(function(k){
     h+='<option value="'+k+'"'+(k===S.site?' selected':'')+'>'+SITES[k].name+'</option>';
   });
-  PENDING.forEach(function(n){ h+='<option disabled>'+n+' — not set up yet</option>'; });
+  PENDING.forEach(function(n){
+    h+='<option value="pending:'+n+'">'+n+' — not set up yet</option>';
+  });
   sel.innerHTML=h;
-  sel.onchange=function(){ loadSite(this.value); render(); };
+  sel.onchange=function(){
+    if(this.value.indexOf('pending:')===0){
+      var nm=this.value.slice(8);
+      document.getElementById('pendNote').innerHTML=
+        '<b>'+nm+'</b> has not been set up yet — its timer settings still need to be added.';
+      document.getElementById('pendNote').style.display='';
+      this.value=S.site;
+      return;
+    }
+    document.getElementById('pendNote').style.display='none';
+    loadSite(this.value); render();
+  };
   document.getElementById('siteNote').textContent='Timer settings for this pool';
   document.getElementById('copyHist').onclick=function(){
     var rows=LOG.filter(function(r){ return r.site===S.site; });
