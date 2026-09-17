@@ -171,6 +171,9 @@ input[type=number]{width:70px}
 .dchip.sel{background:var(--accent);border-color:var(--accent);color:#fff}
 .dchip.wide{border-style:dashed;color:var(--accent);border-color:var(--accent);background:transparent}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.loadbox{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.loadbox svg{display:block;max-width:260px}
+.loadbox p{margin:4px 0 0}
 .logrow{border-top:1px solid var(--line);padding:9px 0;font-size:13px;line-height:1.5}
 .logrow:first-child{border-top:0}
 .logmeta{color:var(--muted);font-size:12px;margin-top:2px}
@@ -212,7 +215,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
   <p class="mini" id="pendNote" style="display:none;margin:-6px 0 14px"></p>
 
   <!-- ================= PANEL ================= -->
-  <div class="panel">
+  <div class="panel" id="panelWrap">
    <div class="window">
     <div class="face">
 
@@ -404,6 +407,18 @@ var SITES = {
         controls:['Circulation Pump 6'], sch:[] }
     ]
   },
+  /* Not a pool: the LED banner at HS, on a plug-in 24-hour dial timer.
+     No control panel, so only the timer card shows. */
+  HSBANNER: {
+    name:'HS — LED Banner',
+    noPanel:true,
+    heatPumps:0,
+    timers:[
+      { label:'Timer — LED banner', device:'round', model:'Soundtech 24 h',
+        note:'Plug-in dial timer, not in the pump panel. Segments pushed in = banner lit.',
+        controls:['LED Banner'], load:'banner', sch:[{on:'19:00',off:'07:00'}] }
+    ]
+  },
   JEOP1: {
     name:'JEOP1',
     heatPumps:2,
@@ -420,7 +435,7 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER'];
 
 var PENDING = ['CC','DR','Lentor','HB','BK','WWW','TPY'];
 
@@ -442,6 +457,7 @@ function loadSite(id){
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
             controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
             row:(t.row||''), noTimer:!!t.noTimer, startSel:(t.startSel||''),
+            load:(t.load||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
                changes the times only, so they are carried across */
@@ -452,6 +468,8 @@ function loadSite(id){
   });
 
   S.heatStyle = cfg.heatStyle || 'on';
+  var pw=document.getElementById('panelWrap');
+  if(pw) pw.style.display = cfg.noPanel ? 'none' : '';
   S.pumps=[];
   S.timers.forEach(function(t,ti){
     if(t.controls===null && t.panelOff) return;
@@ -585,6 +603,90 @@ function digitalSvg(i,label){
   '</svg>';
 }
 
+/* The disc turns clockwise past a fixed pointer at the top, so a time still to
+   come sits anti-clockwise of it — which is why the hours read anti-clockwise. */
+function bannerSvg(i){
+  return '<div class="loadbox"><svg viewBox="0 0 260 104" width="100%" '+
+  'aria-label="LED banner"><g id="bsign'+i+'">'+
+  '<rect x="6" y="8" width="248" height="76" rx="6" id="bboard'+i+'" fill="#1b3c86"/>'+
+  '<circle cx="46" cy="38" r="20" fill="#ffffff" id="bdisc'+i+'"/>'+
+  '<path d="M36 38 q8 -10 18 -2 q4 -6 8 2 q-4 8 -8 2 q-10 8 -18 -2 Z" fill="#1b3c86" id="bfish'+i+'"/>'+
+  '<text x="78" y="46" font-family="Arial" font-size="24" font-weight="bold" fill="#ffffff" '+
+    'id="btext'+i+'">happy fish</text>'+
+  '<text x="78" y="70" font-family="Arial" font-size="11" letter-spacing="1.4" fill="#dfe7f6" '+
+    'id="bsub'+i+'">INDOOR HEATED SWIM SCHOOL</text>'+
+  '</g></svg><p class="mini" id="bcap'+i+'"></p></div>';
+}
+
+function drawBanner(i, lit){
+  document.getElementById('bboard'+i).setAttribute('fill', lit?'#1f49a5':'#2a2f38');
+  document.getElementById('bdisc'+i).setAttribute('fill', lit?'#ffffff':'#6d7382');
+  document.getElementById('bfish'+i).setAttribute('fill', lit?'#1f49a5':'#2a2f38');
+  document.getElementById('btext'+i).setAttribute('fill', lit?'#ffffff':'#7c8291');
+  document.getElementById('bsub'+i).setAttribute('fill', lit?'#dfe7f6':'#6d7382');
+  document.getElementById('bsign'+i).setAttribute('opacity', lit?'1':'0.85');
+  document.getElementById('bcap'+i).textContent = lit ? 'Banner is lit now' : 'Banner is off now';
+}
+
+function roundSvg(i,label){
+  return '<svg viewBox="0 0 164 252" width="160" aria-label="Round plug-in time switch, '+label+'">'+
+  '<rect x="6" y="4" width="152" height="158" rx="22" fill="#f4f5f2" stroke="#c9ccc7"/>'+
+  '<rect x="53" y="156" width="58" height="50" rx="10" fill="#fbfbf9" stroke="#c9ccc7"/>'+
+  '<circle cx="14" cy="130" r="5" fill="#c2342c"/>'+
+  '<circle cx="82" cy="82" r="71" fill="#fdfdfb" stroke="#b9bcb8"/>'+
+  '<circle cx="82" cy="82" r="56" fill="none" stroke="#e0e3de" stroke-width="1"/>'+
+  '<circle cx="82" cy="82" r="41" fill="#fbfbf9" stroke="#d3d6d1"/>'+
+  '<g id="rdial'+i+'"></g>'+
+  '<path d="M82 2 L76 15 L88 15 Z" fill="#2b2e30"/>'+
+  '<path d="M64 68 a20 20 0 0 1 36 0" fill="none" stroke="#6a6d6a" stroke-width="1.6"/>'+
+  '<path d="M100 68 l-7 -3 l1 8 Z" fill="#6a6d6a"/>'+
+  '<text x="82" y="92" text-anchor="middle" font-family="Arial" font-size="8" fill="#8a8f8a" id="rmdl'+i+'"></text>'+
+  '<rect x="59" y="164" width="46" height="18" rx="3" fill="#e4e6e2" stroke="#b9bcb8"/>'+
+  '<g id="ts'+i+'"><rect x="61" y="166" width="20" height="14" rx="2" fill="#5a5e60" stroke="#3a3d3f"/></g>'+
+  '<rect x="59" y="164" width="46" height="18" fill="transparent" data-tsw="'+i+'" style="cursor:pointer"/>'+
+  '<text x="49" y="196" font-family="Arial" font-size="9" fill="#3b3e3b">timer</text>'+
+  '<text x="99" y="196" font-family="Arial" font-size="9" fill="#3b3e3b">on</text>'+
+  /* key: which way a segment is pushed */
+  '<g font-family="Arial" font-size="9" fill="#3b3e3b">'+
+    '<line x1="14" y1="222" x2="14" y2="234" stroke="#2f74ad" stroke-width="3"/>'+
+    '<path d="M22 228 l8 0 M27 225 l4 3 l-4 3" stroke="#2f74ad" fill="none" stroke-width="1.4"/>'+
+    '<text x="35" y="231">out = ON</text>'+
+    '<line x1="97" y1="222" x2="97" y2="234" stroke="#9aa09a" stroke-width="3"/>'+
+    '<path d="M94 228 l-8 0 M91 225 l-4 3 l4 3" stroke="#9aa09a" fill="none" stroke-width="1.4"/>'+
+    '<text x="104" y="231">in = off</text>'+
+  '</g>'+
+  '</svg>';
+}
+
+/* The disc turns clockwise past a fixed pointer at the top, so a time still to
+   come sits anti-clockwise of it — which is why the hours read anti-clockwise.
+   A segment pushed OUT towards the rim switches on; pushed IN towards the
+   centre it is off, so the two sit at different radii, not just colours. */
+function drawRound(i,m){
+  var t=S.timers[i], CX=82, CY=82, g='';
+  function pt(mins, r){
+    var a=(-90 - ((mins-m)/1440)*360) * Math.PI/180;
+    return [CX+r*Math.cos(a), CY+r*Math.sin(a)];
+  }
+  for(var k=0;k<96;k++){
+    var on=timerOn(t, k*15+7);
+    var r1= on?57:45, r2= on?69:56;
+    var a=pt(k*15, r1), b=pt(k*15, r2);
+    g+='<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+
+       '" y2="'+b[1].toFixed(1)+'" stroke="'+(on?'#2f74ad':'#b9bfb9')+
+       '" stroke-width="'+(on?'3':'2.4')+'" stroke-linecap="round"/>';
+  }
+  for(var h=1;h<=24;h++){
+    var q=pt(h*60, 34);
+    g+='<text x="'+q[0].toFixed(1)+'" y="'+(q[1]+3).toFixed(1)+'" text-anchor="middle" '+
+       'font-family="Arial" font-size="7.5" fill="#3b3e3b">'+h+'</text>';
+  }
+  document.getElementById('rdial'+i).innerHTML=g;
+  document.getElementById('rmdl'+i).textContent=t.model||'';
+  document.getElementById('ts'+i).setAttribute('transform',
+    t.tsw==='on' ? 'translate(22,0)' : 'translate(0,0)');
+}
+
 function drawDigital(i,m,today){
   var t=S.timers[i];
   if(today===undefined) today=nowDay();
@@ -673,9 +775,14 @@ function buildCards(){
         (t.controlsOff?' — one at a time':'')+'</p>' : '';
     if(t.note) drives += '<p class="mini" style="margin:-6px 0 10px">'+t.note+'</p>';
     return '<div class="card"><h2>'+t.label+'</h2>'+drives+'<div class="tpair"><div>'+
-      '<div class="tdial">'+(t.device==='digital'?digitalSvg(i,t.label):dialSvg(i,t.label))+'</div>'+
+      '<div class="tdial">'+(t.device==='digital'?digitalSvg(i,t.label)
+        : t.device==='round'?roundSvg(i,t.label) : dialSvg(i,t.label))+'</div>'+
       '<p class="dialnote">Should read <b id="dn'+i+'">--:--</b><br>'+
-      (t.device==='digital'
+      (t.device==='round'
+        ? '<span class="dialkey">segment pushed OUT to the rim = on</span><br>'+
+          '<span class="dialkey">pushed IN to the centre = off</span><br>'+
+          '<span class="dialkey">the pointer at the top is now</span>'
+        : t.device==='digital'
         ? '<span class="dialkey">check the day is right too</span>'
         : '<span class="dialkey">left = running</span><br>'+
           '<span class="dialkey">knob in the middle = auto · at 1 = always on</span>')+
@@ -685,6 +792,7 @@ function buildCards(){
       '<div id="tl'+i+'"></div>'+
       '<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'+
       '<div class="state" id="st'+i+'"></div>'+
+      (t.load==='banner' ? bannerSvg(i) : '')+
       (RELAY_URL ? '<div class="photobox">'+
         '<div class="row"><input type="text" id="pnote'+i+'" placeholder="Note with the photo (optional)"></div>'+
         '<div class="row"><label class="apply" for="pf'+i+'">📷 Take timer photo</label>'+
@@ -948,7 +1056,9 @@ function render(){
 
   S.timers.forEach(function(t,i){
     drawTimeline(i,m,d);
-    if(t.device==='digital') drawDigital(i,m,d); else drawDial(i,m,d);
+    if(t.device==='digital') drawDigital(i,m,d);
+    else if(t.device==='round') drawRound(i,m);
+    else drawDial(i,m,d);
     document.getElementById('dn'+i).textContent=fmt(m)+(t.device==='digital'?' · '+DAYSH[d]:'');
 
     /* what this timer is doing to its rows right now */
@@ -975,6 +1085,7 @@ function render(){
     if(!r.flow && mine.some(function(x){ return x.p.needsFlow; }))
       st+='<br><span class="warn">No circulation pump is running, so this stays off whatever the timer says.</span>';
     document.getElementById('st'+i).innerHTML=st;
+    if(t.load==='banner') drawBanner(i, closed);
   });
 
   for(var k=0;k<S.heatCount;k++){
