@@ -55,8 +55,10 @@ h1{font-size:19px;margin:0 0 2px}
   letter-spacing:.01em;line-height:1.15;padding:2px 1px}
 .block{margin-bottom:22px}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;align-items:center}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;align-items:center}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:58%;margin:0 auto}
 .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;width:40%;margin:0 auto}
+.htitle{display:grid;grid-template-columns:3fr 2fr;gap:5px;margin-bottom:4px}
 .titlebar{margin:0 0 4px}
 .titlebar.span{margin-left:16.6%}
 .cell{display:flex;justify-content:center;align-items:center;height:52px}
@@ -445,8 +447,8 @@ function buildPanel(){
   var html = S.pumps.map(function(p,i){
     if(p.row==='heater'){
       return '<div class="block">'+
-        '<div class="grid2" style="width:100%;margin-bottom:4px">'+
-          '<div class="strip">'+p.label.toUpperCase()+'</div><div class="strip">HEATER</div></div>'+
+        '<div class="htitle"><div class="strip">'+p.label.toUpperCase()+'</div>'+
+          '<div class="strip">HEATER</div></div>'+
         '<div class="grid5"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">START</div>'+
         '<div class="strip">STOP</div><div class="strip">ON</div><div class="strip">OFF</div></div>'+
         '<div class="grid5">'+
