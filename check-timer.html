@@ -175,6 +175,7 @@ input[type=number]{width:70px}
     <select id="site"></select>
     <span class="mini" id="siteNote"></span>
   </div>
+  <p class="mini" id="ovrNote" style="display:none;margin:-6px 0 14px"></p>
 
   <!-- ================= PANEL ================= -->
   <div class="panel">
@@ -287,13 +288,18 @@ function loadSite(id){
   S.site=id;
   var cfg=SITES[id];
   S.hasHeat = !!cfg.heatPump;
+  var ovr=readOvr()[id];
   S.pumps = cfg.timers.map(function(t){
     return {label:t.label, onPanel:(t.panel!==false), device:(t.device||'hager'),
             model:(t.model||''), sel:'AUTO', tripped:false,
-            manRun:true, tsw:'auto', sch:t.sch.slice()};
+            manRun:true, tsw:'auto',
+            sch:t.sch.map(function(w){ return {on:w.on, off:w.off}; })};
+  });
+  if(ovr) S.pumps.forEach(function(p,i){
+    if(ovr[i]) p.sch=ovr[i].map(function(w){ return {on:w.on, off:w.off}; });
   });
   try{ localStorage.setItem('timerSite', id); }catch(e){}
-  buildPanel(); buildCards();
+  buildPanel(); buildCards(); drawOvrNote();
 }
 
 /* ---------- markup built from the config ---------- */
@@ -410,6 +416,7 @@ try{ var last=localStorage.getItem('timerSite'); }catch(e){}
 loadSite(SITES[last]?last:'JEIP1');
 function save(){}
 
+
 function toMin(t){ var p=t.split(':'); return (+p[0])*60 + (+p[1]); }
 function pad(n){ return (n<10?'0':'')+n; }
 function fmt(m){ m=((m%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); }
@@ -433,11 +440,41 @@ function running(p, m){
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
 
 function drawSchedules(i){
-  var box=document.getElementById('sch'+i), p=S.pumps[i];
-  if(!p.sch.length){ box.innerHTML='<p class="mini">No ON period set for this pump.</p>'; return; }
-  box.innerHTML = p.sch.map(function(w){
-    return '<div class="setline">ON <b>'+w.on+'</b> &nbsp;·&nbsp; OFF <b>'+w.off+'</b></div>';
-  }).join('');
+  var box=document.getElementById('sch'+i), p=S.pumps[i], h='';
+  p.sch.forEach(function(w,j){
+    h+='<div class="row"><label>ON</label>'+
+       '<input type="time" data-p="'+i+'" data-j="'+j+'" data-f="on" value="'+w.on+'">'+
+       '<label>OFF</label>'+
+       '<input type="time" data-p="'+i+'" data-j="'+j+'" data-f="off" value="'+w.off+'">'+
+       (p.sch.length>1?'<button class="del" data-del="'+i+'-'+j+'">Remove</button>':'')+
+       '</div>';
+  });
+  if(!p.sch.length) h='<p class="mini">No ON period set — the pump stays off on auto.</p>';
+  h+='<div class="row"><button class="add" data-add="'+i+'">+ Add ON period</button></div>';
+  box.innerHTML=h;
+}
+
+/* edits are kept on this phone only; the pool's saved settings stay in SITES */
+function readOvr(){ try{ return JSON.parse(localStorage.getItem('timerOvr')||'{}'); }catch(e){ return {}; } }
+function saveOvr(){
+  var all=readOvr();
+  all[S.site]=S.pumps.map(function(p){ return p.sch; });
+  try{ localStorage.setItem('timerOvr', JSON.stringify(all)); }catch(e){}
+  drawOvrNote();
+}
+function clearOvr(){
+  var all=readOvr(); delete all[S.site];
+  try{ localStorage.setItem('timerOvr', JSON.stringify(all)); }catch(e){}
+  loadSite(S.site); render();
+}
+function drawOvrNote(){
+  var el=document.getElementById('ovrNote'); if(!el) return;
+  if(readOvr()[S.site]){
+    el.innerHTML='Edited on this phone — the saved settings for this pool are unchanged. '+
+      '<button class="del" id="ovrReset">Reset to saved</button>';
+    document.getElementById('ovrReset').onclick=clearOvr;
+    el.style.display='';
+  } else el.style.display='none';
 }
 
 function drawTimeline(i, m){
@@ -564,6 +601,18 @@ document.addEventListener('click', function(e){
     }
     save(); render(); return;
   }
+  var d=e.target.closest('[data-del]');
+  if(d){
+    var dp=d.dataset.del.split('-');
+    S.pumps[+dp[0]].sch.splice(+dp[1],1);
+    drawSchedules(+dp[0]); saveOvr(); render(); return;
+  }
+  var ad=e.target.closest('[data-add]');
+  if(ad){
+    var ai=+ad.dataset.add;
+    S.pumps[ai].sch.push({on:'00:00',off:'06:00'});
+    drawSchedules(ai); saveOvr(); render(); return;
+  }
   var b=e.target.closest('[data-press]');
   if(b){
     var a=b.dataset.press;
@@ -571,6 +620,14 @@ document.addEventListener('click', function(e){
     if(a.indexOf('stop')===0){ var i2=+a.slice(4); S.pumps[i2].manRun=false; }
     if(a.indexOf('trip')===0){ var i3=+a.slice(4); S.pumps[i3].tripped=!S.pumps[i3].tripped; }
     save(); render(); return;
+  }
+});
+
+document.addEventListener('change', function(e){
+  var t=e.target;
+  if(t.dataset && t.dataset.p!==undefined && t.type==='time'){
+    S.pumps[+t.dataset.p].sch[+t.dataset.j][t.dataset.f]=t.value||'00:00';
+    saveOvr(); render();
   }
 });
 
