@@ -296,9 +296,12 @@ var SITES = {
     heatPumps:0,
     timers:[
       { label:'Timer 1 — circulation pumps (duty changeover)', device:'digital', model:'GIC time switch',
+        note:'Same programme every day, Monday to Sunday. One pump is always circulating: '+
+             'Pump 1 while the contact is closed, Pump 2 while it is open — they never run together.',
         controls:['Circulation Pump 1'], controlsOff:['Circulation Pump 2'],
         sch:[{on:'03:00',off:'06:00'},{on:'18:10',off:'00:00'}] },
       { label:'Timer 2 — heat pump', device:'digital', model:'GIC time switch',
+        note:'Different hours at the weekend — check the day on the display, not just the time.',
         controls:['Heat Pump'], needsFlow:true,
         sch:[{on:'12:00',off:'18:00',days:[1,2,3,4,5]},
              {on:'08:00',off:'17:00',days:[0,6]}] }
@@ -338,7 +341,7 @@ function loadSite(id){
   S.timers = cfg.timers.map(function(t,ti){
     var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
-            controls:(t.controls||null), controlsOff:(t.controlsOff||null),
+            controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
                changes the times only, so they are carried across */
@@ -538,6 +541,7 @@ function buildCards(){
     var drives = names.length>1 || t.controlsOff
       ? '<p class="mini" style="margin:-4px 0 10px">Controls '+names.join(t.controlsOff?' and ':' and ')+
         (t.controlsOff?' — one at a time':'')+'</p>' : '';
+    if(t.note) drives += '<p class="mini" style="margin:-6px 0 10px">'+t.note+'</p>';
     return '<div class="card"><h2>'+t.label+'</h2>'+drives+'<div class="tpair"><div>'+
       '<div class="tdial">'+(t.device==='digital'?digitalSvg(i,t.label):dialSvg(i,t.label))+'</div>'+
       '<p class="dialnote">Should read <b id="dn'+i+'">--:--</b><br>'+
@@ -633,9 +637,9 @@ function drawSchedules(i){
     h = p.sch.length
       ? p.sch.map(function(w,j){
           return '<div class="setline">'+
-            (p.device==='digital' ? '<span class="dw">Step '+(j+1)+'</span> ' : '')+
+            (p.device==='digital' ? '<span class="dw">Program '+(j+1)+'</span> ' : '')+
             'ON <b>'+w.on+'</b> &nbsp;·&nbsp; OFF <b>'+w.off+'</b>'+
-            (w.days ? '<span class="dw">'+dayWord(w.days)+'</span>' : '')+'</div>';
+            '<span class="dw">'+(w.days ? dayWord(w.days) : 'Every day · Mon–Sun')+'</span></div>';
         }).join('')
       : '<p class="mini">No ON period set — the pump stays off on auto.</p>';
     h+='<div class="row" style="margin-top:8px"><button class="apply" data-edit="'+i+'">Edit times</button></div>';
