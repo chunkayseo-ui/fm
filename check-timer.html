@@ -313,6 +313,31 @@ var SITES = {
              {on:'08:00',off:'17:00',days:[0,6]}] }
     ]
   },
+  /* Six GIC time switches on the rail (TS1–TS6): one per circulation pump and
+     one per heater pump. Pumps 1 and 2 share the same hours, as do 3 and 4, but
+     each pump has its own timer, so each is checked and set separately. */
+  JEOP2: {
+    name:'JEOP2',
+    supply:'SUPPLY ON LIGHTS',
+    note:'Six digital timers — one per pump',
+    heatPumps:0,
+    timers:[
+      { label:'TS1 — Circulation Pump 1', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump 1'], sch:[{on:'07:00',off:'19:00'}] },
+      { label:'TS2 — Circulation Pump 2', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump 2'], sch:[{on:'07:00',off:'19:00'}] },
+      { label:'TS3 — Circulation Pump 3', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump 3'], sch:[{on:'19:05',off:'06:55'}] },
+      { label:'TS4 — Circulation Pump 4', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump 4'], sch:[{on:'19:05',off:'06:55'}] },
+      { label:'TS5 — Heater Pump 1', device:'digital', model:'GIC time switch',
+        controls:['Heater Pump 1'], row:'heater', needsFlow:true,
+        sch:[{on:'04:00',off:'12:00'}] },
+      { label:'TS6 — Heater Pump 2', device:'digital', model:'GIC time switch',
+        controls:['Heater Pump 2'], row:'heater', needsFlow:true,
+        sch:[{on:'12:00',off:'22:00'}] }
+    ]
+  },
   JEOP1: {
     name:'JEOP1',
     heatPumps:2,
@@ -328,8 +353,7 @@ var SITES = {
     ]
   }
 };
-var PENDING = ['JEOP2',
-  'CC','DR','Lentor','Tengah','HB','HS','BK','WWW','TPY'];
+var PENDING = ['CC','DR','Lentor','Tengah','HB','HS','BK','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
@@ -348,6 +372,7 @@ function loadSite(id){
     var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
             controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
+            row:(t.row||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
                changes the times only, so they are carried across */
@@ -362,11 +387,11 @@ function loadSite(id){
     if(t.controls===null && t.panelOff) return;
     var names = t.controls || [t.label];
     names.forEach(function(nm){
-      S.pumps.push({label:nm, t:ti, invert:false, needsFlow:t.needsFlow,
+      S.pumps.push({label:nm, t:ti, row:(t.row||''), invert:false, needsFlow:t.needsFlow,
                     flow:!t.needsFlow, sel:'AUTO', tripped:false, manRun:true});
     });
     (t.controlsOff||[]).forEach(function(nm){
-      S.pumps.push({label:nm, t:ti, invert:true, needsFlow:false,
+      S.pumps.push({label:nm, t:ti, row:(t.row||''), invert:true, needsFlow:false,
                     flow:true, sel:'AUTO', tripped:false, manRun:true});
     });
   });
@@ -384,6 +409,21 @@ function loadSite(id){
 /* ---------- markup built from the config ---------- */
 function buildPanel(){
   var html = S.pumps.map(function(p,i){
+    if(p.row==='heater'){
+      return '<div class="block">'+
+        '<div class="grid2" style="width:100%;margin-bottom:4px">'+
+          '<div class="strip">'+p.label.toUpperCase()+'</div><div class="strip">HEATER</div></div>'+
+        '<div class="grid5"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">START</div>'+
+        '<div class="strip">STOP</div><div class="strip">ON</div><div class="strip">OFF</div></div>'+
+        '<div class="grid5">'+
+          '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="'+i+'"><i></i></div>'+
+            '<div class="knobtag" id="k'+i+'tag">AUTO</div></div></div>'+
+          '<div class="cell"><div class="lamp btn off-green" data-press="start'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp btn off-red" data-press="stop'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp" id="run'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp" id="stp'+i+'"></div></div>'+
+        '</div></div>';
+    }
     return '<div class="block">'+
       '<div class="strip titlebar span">'+p.label.toUpperCase()+'</div>'+
       '<div class="grid6"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">START</div>'+
@@ -811,9 +851,14 @@ function render(){
 
   S.pumps.forEach(function(p,i){
     var run=r.run[i];
-    setLamp('run'+i, run?'on-teal':'off-teal');
-    setLamp('stp'+i, run?'off-red':'on-red');
-    setLamp('trp'+i, p.tripped?'on-amber':'off-amber');
+    if(p.row==='heater'){
+      setLamp('run'+i, run?'on-white':'off-white');
+      setLamp('stp'+i, run?'off-red':'on-red');
+    } else {
+      setLamp('run'+i, run?'on-teal':'off-teal');
+      setLamp('stp'+i, run?'off-red':'on-red');
+      setLamp('trp'+i, p.tripped?'on-amber':'off-amber');
+    }
     document.getElementById('k'+i+'tag').textContent=p.sel;
     document.querySelector('[data-knob="'+i+'"] i').style.transform='rotate('+ANG[p.sel]+'deg)';
   });
