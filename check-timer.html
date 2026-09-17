@@ -51,6 +51,8 @@ h1{font-size:19px;margin:0 0 2px}
   padding:2.5px 2px; font-weight:600; border-radius:2px;
   white-space:nowrap; overflow:hidden;
 }
+.strip.sel3{white-space:normal;overflow:visible;font-size:7.5px;
+  letter-spacing:.01em;line-height:1.15;padding:2px 1px}
 .block{margin-bottom:22px}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;align-items:center}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:58%;margin:0 auto}
@@ -315,7 +317,7 @@ function buildPanel(){
     if(!p.onPanel) return '';
     return '<div class="block">'+
       '<div class="strip titlebar span">'+p.label.toUpperCase()+'</div>'+
-      '<div class="grid6"><div class="strip">MAN-OFF-AUTO</div><div class="strip">START</div>'+
+      '<div class="grid6"><div class="strip sel3">MAN-OFF-AUTO</div><div class="strip">START</div>'+
       '<div class="strip">STOP</div><div class="strip">RUN</div><div class="strip">STOP</div>'+
       '<div class="strip">TRIP</div></div>'+
       '<div class="grid6">'+
