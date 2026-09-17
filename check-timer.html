@@ -442,6 +442,33 @@ var SITES = {
              {on:'03:00',off:'03:45'}] }
     ]
   },
+  /* LCP-SF-01-02, the air mover for the heat pump. Same Theben dial as the
+     fresh air fan, same panel layout, but no drive. */
+  HSAIRMOVER: {
+    name:'HS — Air Mover for heatpump',
+    supply:'INCOMING LIGHT',
+    selector:'MAN - OFF - AUTO',
+    note:'LCP-SF-01-02 · air mover panel',
+    heatPumps:0,
+    timers:[
+      { label:'Timer — Air mover', device:'theben', model:'SUL 181d · Quartz',
+        note:'Runs through the day, every day. Rider pushed in = 1 (on), '+
+             'the same way round as the fresh air fan.',
+        controls:['Air Mover'], row:'fan',
+        sch:[{on:'05:45',off:'21:45'}] }
+    ]
+  },
+
+  /* No control panel at DR — one Hager roller timer on the wall, nothing else. */
+  DR: {
+    name:'DR',
+    noPanel:true,
+    heatPumps:0,
+    timers:[
+      { label:'Timer — Circulation Pump', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump'], sch:[{on:'04:00',off:'00:00'}] }
+    ]
+  },
   JEOP1: {
     name:'JEOP1',
     heatPumps:2,
@@ -458,9 +485,9 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR'];
 
-var PENDING = ['CC','DR','Lentor','HB','BK','WWW','TPY'];
+var PENDING = ['CC','Lentor','HB','BK','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
