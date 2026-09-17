@@ -214,20 +214,6 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 
       <div id="panelPumps"></div>
 
-      <!-- HEAT PUMP -->
-      <div class="block" id="heatBlock" style="margin-bottom:4px">
-        <div class="strip titlebar" style="width:40%;margin:0 auto 4px">HEAT PUMP</div>
-        <div class="grid2">
-          <div class="strip">OFF-ON</div><div class="strip">ON</div>
-        </div>
-        <div class="grid2">
-          <div class="cell"><div class="knobwrap">
-            <div class="knob" data-knob="heat"><i></i></div><div class="knobtag" id="khtag">ON</div>
-          </div></div>
-          <div class="cell"><div class="lamp" id="hplamp"></div></div>
-        </div>
-      </div>
-
     </div>
    </div>
   </div>
@@ -293,48 +279,74 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 var SITES = {
   JEIP1: {
     name:'JE — Indoor Pool 1',
-    heatPump:true,
+    heatPumps:1,
     timers:[
       { label:'Circulation Pump 1', device:'hager', model:'Hager EH011',
         sch:[{on:'03:00',off:'15:00'}] },
       { label:'Circulation Pump 2', device:'hager', model:'Hager EH011',
         sch:[{on:'15:00',off:'00:00'}] }
     ]
+  },
+  JEOP1: {
+    name:'JE — Outdoor Pool 1',
+    heatPumps:2,
+    selector:'AUTO OFF MAN',
+    tripLabel:'TAIP',
+    timers:[
+      { label:'Timer 1 — Pumps 1 & 2', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 1','Circulation Pump 2'],
+        sch:[{on:'05:00',off:'15:00'}] },
+      { label:'Timer 2 — Pumps 3 & 4', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 3','Circulation Pump 4'],
+        sch:[{on:'15:30',off:'00:00'}] }
+    ]
   }
 };
-var PENDING = ['JE — Indoor Pool 2','JE — Outdoor Pool 1','JE — Outdoor Pool 2',
+var PENDING = ['JE — Indoor Pool 2','JE — Outdoor Pool 2',
   'CC','DR','Lentor','Tengah','HB','HS','BK','WWW','TPY'];
 
-var S = { mode:'live', manual:480, site:'JEIP1', pumps:[], heat:'ON', hasHeat:true };
+var S = { mode:'live', manual:480, site:'JEIP1', timers:[], pumps:[], heat:[], heatCount:0,
+          selLabel:'MAN-OFF-AUTO', tripLabel:'TRIP' };
 
 function loadSite(id){
   if(!SITES[id]) return;
   S.site=id;
   var cfg=SITES[id];
-  S.hasHeat = !!cfg.heatPump;
+  S.heatCount = (cfg.heatPumps!==undefined) ? cfg.heatPumps : (cfg.heatPump?1:0);
+  S.selLabel  = cfg.selector  || 'MAN-OFF-AUTO';
+  S.tripLabel = cfg.tripLabel || 'TRIP';
+
   var ovr=readOvr()[id];
-  S.pumps = cfg.timers.map(function(t){
-    return {label:t.label, onPanel:(t.panel!==false), device:(t.device||'hager'),
-            model:(t.model||''), sel:'AUTO', tripped:false,
-            manRun:true, tsw:'auto',
-            sch:t.sch.map(function(w){ return {on:w.on, off:w.off}; })};
+  S.timers = cfg.timers.map(function(t,ti){
+    var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
+    return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
+            controls:(t.controls||null), tsw:'auto',
+            sch:sch.map(function(w){ return {on:w.on, off:w.off}; })};
   });
-  if(ovr) S.pumps.forEach(function(p,i){
-    if(ovr[i]) p.sch=ovr[i].map(function(w){ return {on:w.on, off:w.off}; });
+
+  S.pumps=[];
+  S.timers.forEach(function(t,ti){
+    if(t.controls===null && t.panelOff) return;
+    var names = t.controls || [t.label];
+    names.forEach(function(nm){
+      S.pumps.push({label:nm, t:ti, sel:'AUTO', tripped:false, manRun:true});
+    });
   });
+
+  S.heat=[]; for(var k=0;k<S.heatCount;k++) S.heat.push('ON');
+
   try{ localStorage.setItem('timerSite', id); }catch(e){}
   buildPanel(); buildCards(); drawOvrNote(); drawHistory();
 }
 
 /* ---------- markup built from the config ---------- */
 function buildPanel(){
-  document.getElementById('panelPumps').innerHTML = S.pumps.map(function(p,i){
-    if(!p.onPanel) return '';
+  var html = S.pumps.map(function(p,i){
     return '<div class="block">'+
       '<div class="strip titlebar span">'+p.label.toUpperCase()+'</div>'+
-      '<div class="grid6"><div class="strip sel3">MAN-OFF-AUTO</div><div class="strip">START</div>'+
+      '<div class="grid6"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">START</div>'+
       '<div class="strip">STOP</div><div class="strip">RUN</div><div class="strip">STOP</div>'+
-      '<div class="strip">TRIP</div></div>'+
+      '<div class="strip">'+S.tripLabel+'</div></div>'+
       '<div class="grid6">'+
         '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="'+i+'"><i></i></div>'+
           '<div class="knobtag" id="k'+i+'tag">AUTO</div></div></div>'+
@@ -345,7 +357,19 @@ function buildPanel(){
         '<div class="cell"><div class="lamp" id="trp'+i+'" data-press="trip'+i+'" style="cursor:pointer"></div></div>'+
       '</div></div>';
   }).join('');
-  document.getElementById('heatBlock').style.display = S.hasHeat ? '' : 'none';
+
+  for(var k=0;k<S.heatCount;k++){
+    html += '<div class="block"'+(k===S.heatCount-1?' style="margin-bottom:4px"':'')+'>'+
+      '<div class="strip titlebar" style="width:52%;margin:0 auto 4px">HEAT PUMP'+
+        (S.heatCount>1?' '+(k+1):'')+'</div>'+
+      '<div class="grid2"><div class="strip">OFF-ON</div><div class="strip">ON</div></div>'+
+      '<div class="grid2">'+
+        '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="heat'+k+'"><i></i></div>'+
+          '<div class="knobtag" id="kh'+k+'tag">ON</div></div></div>'+
+        '<div class="cell"><div class="lamp" id="hplamp'+k+'"></div></div>'+
+      '</div></div>';
+  }
+  document.getElementById('panelPumps').innerHTML = html;
 }
 
 function dialSvg(i,label){
@@ -400,7 +424,7 @@ function digitalSvg(i,label){
 }
 
 function drawDigital(i,m){
-  var p=S.pumps[i];
+  var p=S.timers[i];
   document.getElementById('lcd'+i).textContent=fmt(m);
   document.getElementById('mdl'+i).textContent=p.model||'Digital time switch';
   var names=['SU','MO','TU','WE','TH','FR','SA'], today=new Date().getDay(), h='';
@@ -447,7 +471,7 @@ function shrinkAndStamp(file, caption, cb){
 }
 
 function sendPhoto(i, file){
-  var p=S.pumps[i], msg=document.getElementById('pmsg'+i);
+  var p=S.timers[i], msg=document.getElementById('pmsg'+i);
   var who=WHO||'';
   if(!who){ msg.textContent='Put your name in when you save a change first, or type it below.'; }
   var now=new Date();
@@ -476,11 +500,13 @@ function sendPhoto(i, file){
 }
 
 function buildCards(){
-  document.getElementById('timerCards').innerHTML = S.pumps.map(function(p,i){
-    return '<div class="card"><h2>'+p.label+' — timer</h2><div class="tpair"><div>'+
-      '<div class="tdial">'+(p.device==='digital'?digitalSvg(i,p.label):dialSvg(i,p.label))+'</div>'+
+  document.getElementById('timerCards').innerHTML = S.timers.map(function(t,i){
+    var drives = t.controls ? '<p class="mini" style="margin:-4px 0 10px">Controls '+
+        t.controls.join(' and ')+'</p>' : '';
+    return '<div class="card"><h2>'+t.label+'</h2>'+drives+'<div class="tpair"><div>'+
+      '<div class="tdial">'+(t.device==='digital'?digitalSvg(i,t.label):dialSvg(i,t.label))+'</div>'+
       '<p class="dialnote">Should read <b id="dn'+i+'">--:--</b><br>'+
-      (p.device==='digital'
+      (t.device==='digital'
         ? '<span class="dialkey">check the day is right too</span>'
         : '<span class="dialkey">left = running</span><br>'+
           '<span class="dialkey">knob in the middle = auto · at 1 = always on</span>')+
@@ -497,8 +523,9 @@ function buildCards(){
         '</div>' : '')+
       '</div></div></div>';
   }).join('');
-  S.pumps.forEach(function(p,i){ drawSchedules(i); });
+  S.timers.forEach(function(t,i){ drawSchedules(i); });
 }
+
 function save(){}
 
 
@@ -515,11 +542,15 @@ function inWindow(w, m){
   return a<b ? (m>=a && m<b) : (m>=a || m<b);
 }
 function timerOn(p, m){ for(var i=0;i<p.sch.length;i++){ if(inWindow(p.sch[i],m)) return true; } return false; }
+function contact(t, m){
+  if(t.tsw==='on') return true;
+  return timerOn(t, m);
+}
 function running(p, m){
   if(p.tripped) return false;
   if(p.sel==='OFF') return false;
   if(p.sel==='MAN') return p.manRun;
-  return (p.tsw==='on') ? true : timerOn(p, m);
+  return contact(S.timers[p.t], m);
 }
 
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
@@ -529,7 +560,7 @@ function fmtSch(sch){
 }
 
 function drawSchedules(i){
-  var box=document.getElementById('sch'+i), p=S.pumps[i], h='';
+  var box=document.getElementById('sch'+i), p=S.timers[i], h='';
   if(!EDIT[i]){
     h = p.sch.length
       ? p.sch.map(function(w){ return '<div class="setline">ON <b>'+w.on+'</b> &nbsp;·&nbsp; OFF <b>'+w.off+'</b></div>'; }).join('')
@@ -592,7 +623,7 @@ function drawHistory(){
 function readOvr(){ try{ return JSON.parse(localStorage.getItem('timerOvr')||'{}'); }catch(e){ return {}; } }
 function saveOvr(){
   var all=readOvr();
-  all[S.site]=S.pumps.map(function(p){ return p.sch; });
+  all[S.site]=S.timers.map(function(t){ return t.sch; });
   try{ localStorage.setItem('timerOvr', JSON.stringify(all)); }catch(e){}
   drawOvrNote();
 }
@@ -612,7 +643,7 @@ function drawOvrNote(){
 }
 
 function drawTimeline(i, m){
-  var p=S.pumps[i], el=document.getElementById('tl'+i), h='';
+  var p=S.timers[i], el=document.getElementById('tl'+i), h='';
   p.sch.forEach(function(w){
     var a=toMin(w.on), b=toMin(w.off);
     if(a===b) return;
@@ -627,7 +658,7 @@ function setLamp(id, cls){ var e=document.getElementById(id); e.className='lamp 
 
 /* --- Hager EH011 dial: scale ring seen through the window --- */
 function drawDial(i, m){
-  var p=S.pumps[i], R=175, CY=196, g='', k, a, b;
+  var p=S.timers[i], R=175, CY=196, g='', k, a, b;
   function proj(t){
     var d=((t-m+720+2880)%1440)-720, th=d/1440*2*Math.PI;
     return {y:CY+R*Math.sin(th), c:Math.cos(th), bow:(1-Math.cos(th))*7,
@@ -669,43 +700,40 @@ function drawDial(i, m){
 function render(){
   var m=nowMin();
   document.getElementById('clockTxt').textContent=fmt(m);
-  var anyRun=false;
 
-  for(var i=0;i<S.pumps.length;i++){
-    var p=S.pumps[i], run=running(p,m);
-    if(run) anyRun=true;
-    if(p.onPanel){
-      setLamp('run'+i, run?'on-teal':'off-teal');
-      setLamp('stp'+i, run?'off-red':'on-red');
-      setLamp('trp'+i, p.tripped?'on-amber':'off-amber');
-      document.getElementById('k'+i+'tag').textContent=p.sel;
-      document.querySelector('[data-knob="'+i+'"] i').style.transform='rotate('+ANG[p.sel]+'deg)';
-    }
+  S.timers.forEach(function(t,i){
     drawTimeline(i,m);
-    if(p.device==='digital') drawDigital(i,m); else drawDial(i,m);
+    if(t.device==='digital') drawDigital(i,m); else drawDial(i,m);
     document.getElementById('dn'+i).textContent=fmt(m);
 
-    var st;
-    if(p.tripped) st='<b>TRIPPED</b> — overload. Reset by tapping the TRIP lamp.';
-    else if(p.sel==='OFF') st='Selector at <b>OFF</b> — pump stopped.';
-    else if(p.sel==='MAN') st='Manual — <b>'+(p.manRun?'RUNNING':'STOPPED')+'</b> (use START / STOP).';
-    else if(p.tsw==='on'){
-      st = 'Timer slider is down at <b>1</b> — contact held closed, tappets ignored. Pump runs 24 h.';
-    }
-    else {
-      st = run ? 'In timer period — <b>RUNNING</b>.' : 'Outside timer period — <b>STOPPED</b>.';
-      var nx=nextChange(p,m);
+    var closed=contact(t,m), st;
+    if(t.tsw==='on'){
+      st='Slider is at <b>1</b> — contact held closed, tappets ignored. Runs 24 h.';
+    } else {
+      st = closed ? 'In timer period — <b>contact closed</b>.' : 'Outside timer period — <b>contact open</b>.';
+      var nx=nextChange(t,m);
       if(nx!==null) st+=' Next change at <b>'+fmt(nx)+'</b>.';
-      st+=' Runs <b>'+dailyHours(p)+' h</b>/day.';
+      st+=' Runs <b>'+dailyHours(t)+' h</b>/day.';
     }
     document.getElementById('st'+i).innerHTML=st;
-  }
+  });
 
-  if(S.hasHeat){
-    var hpOn = (S.heat==='ON' && anyRun);
-    setLamp('hplamp', hpOn?'on-green':'off-green');
-    document.getElementById('khtag').textContent=S.heat;
-    document.querySelector('[data-knob="heat"] i').style.transform='rotate('+ANG[S.heat]+'deg)';
+  var anyRun=false;
+  S.pumps.forEach(function(p,i){
+    var run=running(p,m);
+    if(run) anyRun=true;
+    setLamp('run'+i, run?'on-teal':'off-teal');
+    setLamp('stp'+i, run?'off-red':'on-red');
+    setLamp('trp'+i, p.tripped?'on-amber':'off-amber');
+    document.getElementById('k'+i+'tag').textContent=p.sel;
+    document.querySelector('[data-knob="'+i+'"] i').style.transform='rotate('+ANG[p.sel]+'deg)';
+  });
+
+  for(var k=0;k<S.heatCount;k++){
+    var hpOn = (S.heat[k]==='ON' && anyRun);
+    setLamp('hplamp'+k, hpOn?'on-green':'off-green');
+    document.getElementById('kh'+k+'tag').textContent=S.heat[k];
+    document.querySelector('[data-knob="heat'+k+'"] i').style.transform='rotate('+ANG[S.heat[k]]+'deg)';
   }
 }
 
@@ -724,12 +752,14 @@ function dailyHours(p){
 document.addEventListener('click', function(e){
   var ts=e.target.closest('[data-tsw]');
   if(ts){ var ti=+ts.dataset.tsw;
-    S.pumps[ti].tsw = (S.pumps[ti].tsw==='on') ? 'auto' : 'on';
+    S.timers[ti].tsw = (S.timers[ti].tsw==='on') ? 'auto' : 'on';
     save(); render(); return; }
   var k=e.target.closest('[data-knob]');
   if(k){
-    if(k.dataset.knob==='heat'){ S.heat = S.heat==='ON'?'OFF':'ON'; }
-    else{
+    if(k.dataset.knob.indexOf('heat')===0){
+      var hk=+k.dataset.knob.slice(4);
+      S.heat[hk] = S.heat[hk]==='ON'?'OFF':'ON';
+    } else {
       var order=['MAN','OFF','AUTO'], p=S.pumps[+k.dataset.knob];
       p.sel=order[(order.indexOf(p.sel)+1)%3];
     }
@@ -737,13 +767,13 @@ document.addEventListener('click', function(e){
   }
   var ed=e.target.closest('[data-edit]');
   if(ed){ var ei=+ed.dataset.edit;
-    EDIT[ei]=true; BEFORE[ei]=fmtSch(S.pumps[ei].sch);
-    BEFORE['raw'+ei]=S.pumps[ei].sch.map(function(w){ return {on:w.on, off:w.off}; });
+    EDIT[ei]=true; BEFORE[ei]=fmtSch(S.timers[ei].sch);
+    BEFORE['raw'+ei]=S.timers[ei].sch.map(function(w){ return {on:w.on, off:w.off}; });
     drawSchedules(ei); return; }
 
   var ce=e.target.closest('[data-canceledit]');
   if(ce){ var ci=+ce.dataset.canceledit;
-    S.pumps[ci].sch=BEFORE['raw'+ci].map(function(w){ return {on:w.on, off:w.off}; });
+    S.timers[ci].sch=BEFORE['raw'+ci].map(function(w){ return {on:w.on, off:w.off}; });
     EDIT[ci]=false; drawSchedules(ci); render(); return; }
 
   var se=e.target.closest('[data-savedit]');
@@ -753,24 +783,24 @@ document.addEventListener('click', function(e){
     var err=document.getElementById('err'+si);
     if(!who){ err.textContent='Put your name in.'; return; }
     if(!why){ err.textContent='Say why it was changed.'; return; }
-    var after=fmtSch(S.pumps[si].sch);
+    var after=fmtSch(S.timers[si].sch);
     if(after===BEFORE[si]){ EDIT[si]=false; drawSchedules(si); render(); return; }
     WHO=who; try{ localStorage.setItem('timerWho', who); }catch(e2){}
     saveOvr();
-    addRecord({kind:'change', timer:S.pumps[si].label, before:BEFORE[si], after:after,
+    addRecord({kind:'change', timer:S.timers[si].label, before:BEFORE[si], after:after,
                who:who, reason:why});
     EDIT[si]=false; drawSchedules(si); render(); return; }
 
   var d=e.target.closest('[data-del]');
   if(d){
     var dp=d.dataset.del.split('-');
-    S.pumps[+dp[0]].sch.splice(+dp[1],1);
+    S.timers[+dp[0]].sch.splice(+dp[1],1);
     drawSchedules(+dp[0]); render(); return;
   }
   var ad=e.target.closest('[data-add]');
   if(ad){
     var ai=+ad.dataset.add;
-    S.pumps[ai].sch.push({on:'00:00',off:'06:00'});
+    S.timers[ai].sch.push({on:'00:00',off:'06:00'});
     drawSchedules(ai); render(); return;
   }
   var b=e.target.closest('[data-press]');
@@ -789,7 +819,7 @@ document.addEventListener('change', function(e){
     sendPhoto(+t.dataset.photo, t.files[0]); t.value=''; return;
   }
   if(t.dataset && t.dataset.p!==undefined && t.type==='time'){
-    S.pumps[+t.dataset.p].sch[+t.dataset.j][t.dataset.f]=t.value||'00:00';
+    S.timers[+t.dataset.p].sch[+t.dataset.j][t.dataset.f]=t.value||'00:00';
     render();
   }
 });
