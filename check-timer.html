@@ -275,7 +275,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
    ================================================================ */
 var SITES = {
   JEIP1: {
-    name:'JE — Indoor Pool 1',
+    name:'JEIP1',
     heatPumps:1,
     timers:[
       { label:'Circulation Pump 1', device:'hager', model:'Hager EH011',
@@ -289,7 +289,7 @@ var SITES = {
      the two never run together. The heat pump has its own time switch and its
      own full row on the door, and different hours at the weekend. */
   JEIP2: {
-    name:'JE — Indoor Pool 2',
+    name:'JEIP2',
     supply:'SUPPLY ON LIGHTS',
     note:'One timer runs both circulation pumps — duty and standby',
     heatPumps:0,
@@ -304,7 +304,7 @@ var SITES = {
     ]
   },
   JEOP1: {
-    name:'JE — Outdoor Pool 1',
+    name:'JEOP1',
     heatPumps:2,
     selector:'AUTO OFF MAN',
     tripLabel:'TAIP',
@@ -318,7 +318,7 @@ var SITES = {
     ]
   }
 };
-var PENDING = ['JE — Outdoor Pool 2',
+var PENDING = ['JEOP2',
   'CC','DR','Lentor','Tengah','HB','HS','BK','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
