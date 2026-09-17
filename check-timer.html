@@ -161,6 +161,14 @@ input[type=number]{width:70px}
 .rm{float:right;font:inherit;font-size:11px;padding:2px 7px;border:1px solid var(--line);
   background:transparent;color:var(--muted);border-radius:6px;cursor:pointer}
 .setline{font-size:14px;margin-bottom:5px}
+.photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.logrow{border-top:1px solid var(--line);padding:9px 0;font-size:13px;line-height:1.5}
+.logrow:first-child{border-top:0}
+.logmeta{color:var(--muted);font-size:12px;margin-top:2px}
+label.apply{cursor:pointer}
+input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
+  border:1px solid var(--line);background:var(--bg);color:var(--fg);flex:1 1 150px;min-width:130px}
+.lab{font-size:12.5px;width:80px;color:var(--muted)}
 .setline b{font-variant-numeric:tabular-nums}
 #site{font:inherit;font-size:14px;padding:6px 9px;border-radius:7px;
   border:1px solid var(--line);background:var(--card);color:var(--fg)}
@@ -245,6 +253,13 @@ input[type=number]{width:70px}
     <div id="timerCards"></div>
 
     <div class="card">
+      <h2>Timer record — this pool</h2>
+      <div id="histList"></div>
+      <div class="row" style="margin-top:12px"><button class="apply" id="copyHist">Copy for the group</button>
+        <span class="mini" id="copyMsg"></span></div>
+    </div>
+
+    <div class="card">
       <h2>How it behaves</h2>
       <p class="mini">
         <b>AUTO</b> — pump follows its timer periods. <b>MAN</b> — runs continuously, START/STOP buttons take over.
@@ -308,7 +323,7 @@ function loadSite(id){
     if(ovr[i]) p.sch=ovr[i].map(function(w){ return {on:w.on, off:w.off}; });
   });
   try{ localStorage.setItem('timerSite', id); }catch(e){}
-  buildPanel(); buildCards(); drawOvrNote();
+  buildPanel(); buildCards(); drawOvrNote(); drawHistory();
 }
 
 /* ---------- markup built from the config ---------- */
@@ -404,6 +419,62 @@ function drawDigital(i,m){
     p.tsw==='on' ? 'translate(-32,0)' : 'translate(0,0)');
 }
 
+/* Paste the same Apps Script relay address the dosing photos use.
+   Leave it empty and the photo buttons stay hidden. */
+var RELAY_URL='';
+var RELAY_KEY='';
+
+function shrinkAndStamp(file, caption, cb){
+  var fr=new FileReader();
+  fr.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var w=img.width, h=img.height, max=1280;
+      if(w>max||h>max){ var k=Math.min(max/w,max/h); w=Math.round(w*k); h=Math.round(h*k); }
+      var c=document.createElement('canvas'); c.width=w; c.height=h+34;
+      var x=c.getContext('2d');
+      x.fillStyle='#111'; x.fillRect(0,0,c.width,c.height);
+      x.drawImage(img,0,0,w,h);
+      x.fillStyle='#fff'; x.font='bold 16px Arial'; x.textBaseline='middle';
+      x.fillText(caption, 10, h+17);
+      cb(c.toDataURL('image/jpeg',0.82).split(',')[1]);
+    };
+    img.onerror=function(){ cb(null); };
+    img.src=fr.result;
+  };
+  fr.onerror=function(){ cb(null); };
+  fr.readAsDataURL(file);
+}
+
+function sendPhoto(i, file){
+  var p=S.pumps[i], msg=document.getElementById('pmsg'+i);
+  var who=WHO||'';
+  if(!who){ msg.textContent='Put your name in when you save a change first, or type it below.'; }
+  var now=new Date();
+  var cap=SITES[S.site].name+' · '+p.label+' · '+(who||'technician')+' · '+
+          now.getDate()+' '+MON[now.getMonth()]+' '+pad(now.getHours())+':'+pad(now.getMinutes());
+  msg.textContent='Uploading photo…';
+  shrinkAndStamp(file, cap, function(b64){
+    if(!b64){ msg.textContent='Could not read that photo — try again.'; return; }
+    fetch(RELAY_URL, {method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({key:RELAY_KEY, kind:'timer', outlet:SITES[S.site].name,
+        what:p.label, who:who, caption:cap, wantReading:false, image:b64})})
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if(res && (res.link||res.url||res.fileUrl)){
+          addRecord({kind:'photo', timer:p.label, who:who,
+                     link:(res.link||res.url||res.fileUrl),
+                     reason:(document.getElementById('pnote'+i).value||'').trim()});
+          msg.textContent='Photo saved.';
+          document.getElementById('pnote'+i).value='';
+        } else {
+          msg.textContent='Photo did not save — '+((res&&res.error)||'no link came back')+'.';
+        }
+      })
+      .catch(function(){ msg.textContent='Photo did not go through — check the signal and try again.'; });
+  });
+}
+
 function buildCards(){
   document.getElementById('timerCards').innerHTML = S.pumps.map(function(p,i){
     return '<div class="card"><h2>'+p.label+' — timer</h2><div class="tpair"><div>'+
@@ -417,12 +488,17 @@ function buildCards(){
       '<div class="tside"><div id="sch'+i+'"></div>'+
       '<div class="tl" id="tl'+i+'"></div>'+
       '<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'+
-      '<div class="state" id="st'+i+'"></div></div></div></div>';
+      '<div class="state" id="st'+i+'"></div>'+
+      (RELAY_URL ? '<div class="photobox">'+
+        '<div class="row"><input type="text" id="pnote'+i+'" placeholder="Note with the photo (optional)"></div>'+
+        '<div class="row"><label class="apply" for="pf'+i+'">📷 Take timer photo</label>'+
+        '<input type="file" id="pf'+i+'" accept="image/*" capture="environment" '+
+        'data-photo="'+i+'" style="display:none"><span class="mini" id="pmsg'+i+'"></span></div>'+
+        '</div>' : '')+
+      '</div></div></div>';
   }).join('');
   S.pumps.forEach(function(p,i){ drawSchedules(i); });
 }
-try{ var last=localStorage.getItem('timerSite'); }catch(e){}
-loadSite(SITES[last]?last:'JEIP1');
 function save(){}
 
 
@@ -448,8 +524,19 @@ function running(p, m){
 
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
 
+function fmtSch(sch){
+  return sch.length ? sch.map(function(w){ return w.on+'–'+w.off; }).join(', ') : 'none set';
+}
+
 function drawSchedules(i){
   var box=document.getElementById('sch'+i), p=S.pumps[i], h='';
+  if(!EDIT[i]){
+    h = p.sch.length
+      ? p.sch.map(function(w){ return '<div class="setline">ON <b>'+w.on+'</b> &nbsp;·&nbsp; OFF <b>'+w.off+'</b></div>'; }).join('')
+      : '<p class="mini">No ON period set — the pump stays off on auto.</p>';
+    h+='<div class="row" style="margin-top:8px"><button class="apply" data-edit="'+i+'">Edit times</button></div>';
+    box.innerHTML=h; return;
+  }
   p.sch.forEach(function(w,j){
     h+='<div class="row"><label>ON</label>'+
        '<input type="time" data-p="'+i+'" data-j="'+j+'" data-f="on" value="'+w.on+'">'+
@@ -458,9 +545,47 @@ function drawSchedules(i){
        (p.sch.length>1?'<button class="del" data-del="'+i+'-'+j+'">Remove</button>':'')+
        '</div>';
   });
-  if(!p.sch.length) h='<p class="mini">No ON period set — the pump stays off on auto.</p>';
-  h+='<div class="row"><button class="add" data-add="'+i+'">+ Add ON period</button></div>';
+  h+='<div class="row"><button class="add" data-add="'+i+'">+ Add ON period</button></div>'+
+     '<div class="row"><span class="lab">Your name</span>'+
+       '<input type="text" id="who'+i+'" value="'+(WHO||'')+'" placeholder="Technician"></div>'+
+     '<div class="row"><span class="lab">Reason</span>'+
+       '<input type="text" id="why'+i+'" placeholder="Why it is being changed"></div>'+
+     '<div class="row"><button class="add" data-savedit="'+i+'">Save change</button>'+
+       '<button class="del" data-canceledit="'+i+'">Cancel</button>'+
+       '<span class="mini" id="err'+i+'"></span></div>';
   box.innerHTML=h;
+}
+
+var EDIT={}, BEFORE={};
+var WHO=''; try{ WHO=localStorage.getItem('timerWho')||''; }catch(e){}
+var LOG=[]; try{ LOG=JSON.parse(localStorage.getItem('timerLog')||'[]'); }catch(e){}
+function saveLog(){ try{ localStorage.setItem('timerLog', JSON.stringify(LOG)); }catch(e){} }
+
+var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function stamp(iso){
+  var d=new Date(iso);
+  return d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()+' · '+DAYS[d.getDay()]+
+         ' · '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function addRecord(r){
+  r.at=new Date().toISOString();
+  r.site=S.site; r.siteName=SITES[S.site].name;
+  LOG.unshift(r); if(LOG.length>300) LOG.length=300;
+  saveLog(); drawHistory();
+}
+function drawHistory(){
+  var box=document.getElementById('histList'); if(!box) return;
+  var rows=LOG.filter(function(r){ return r.site===S.site; });
+  if(!rows.length){ box.innerHTML='<p class="mini">Nothing recorded for this pool yet.</p>'; return; }
+  box.innerHTML=rows.map(function(r){
+    var main = r.kind==='photo'
+      ? 'Photo taken — '+r.timer + (r.link?' · <a href="'+r.link+'" target="_blank" rel="noopener">open</a>':'')
+      : r.timer+': <b>'+r.before+'</b> → <b>'+r.after+'</b>';
+    return '<div class="logrow">'+main+
+      (r.reason?'<br><i>'+r.reason+'</i>':'')+
+      '<div class="logmeta">'+(r.who||'—')+' · '+stamp(r.at)+'</div></div>';
+  }).join('');
 }
 
 /* edits are kept on this phone only; the pool's saved settings stay in SITES */
@@ -610,17 +735,43 @@ document.addEventListener('click', function(e){
     }
     save(); render(); return;
   }
+  var ed=e.target.closest('[data-edit]');
+  if(ed){ var ei=+ed.dataset.edit;
+    EDIT[ei]=true; BEFORE[ei]=fmtSch(S.pumps[ei].sch);
+    BEFORE['raw'+ei]=S.pumps[ei].sch.map(function(w){ return {on:w.on, off:w.off}; });
+    drawSchedules(ei); return; }
+
+  var ce=e.target.closest('[data-canceledit]');
+  if(ce){ var ci=+ce.dataset.canceledit;
+    S.pumps[ci].sch=BEFORE['raw'+ci].map(function(w){ return {on:w.on, off:w.off}; });
+    EDIT[ci]=false; drawSchedules(ci); render(); return; }
+
+  var se=e.target.closest('[data-savedit]');
+  if(se){ var si=+se.dataset.savedit;
+    var who=(document.getElementById('who'+si).value||'').trim();
+    var why=(document.getElementById('why'+si).value||'').trim();
+    var err=document.getElementById('err'+si);
+    if(!who){ err.textContent='Put your name in.'; return; }
+    if(!why){ err.textContent='Say why it was changed.'; return; }
+    var after=fmtSch(S.pumps[si].sch);
+    if(after===BEFORE[si]){ EDIT[si]=false; drawSchedules(si); render(); return; }
+    WHO=who; try{ localStorage.setItem('timerWho', who); }catch(e2){}
+    saveOvr();
+    addRecord({kind:'change', timer:S.pumps[si].label, before:BEFORE[si], after:after,
+               who:who, reason:why});
+    EDIT[si]=false; drawSchedules(si); render(); return; }
+
   var d=e.target.closest('[data-del]');
   if(d){
     var dp=d.dataset.del.split('-');
     S.pumps[+dp[0]].sch.splice(+dp[1],1);
-    drawSchedules(+dp[0]); saveOvr(); render(); return;
+    drawSchedules(+dp[0]); render(); return;
   }
   var ad=e.target.closest('[data-add]');
   if(ad){
     var ai=+ad.dataset.add;
     S.pumps[ai].sch.push({on:'00:00',off:'06:00'});
-    drawSchedules(ai); saveOvr(); render(); return;
+    drawSchedules(ai); render(); return;
   }
   var b=e.target.closest('[data-press]');
   if(b){
@@ -634,9 +785,12 @@ document.addEventListener('click', function(e){
 
 document.addEventListener('change', function(e){
   var t=e.target;
+  if(t.dataset && t.dataset.photo!==undefined && t.files && t.files[0]){
+    sendPhoto(+t.dataset.photo, t.files[0]); t.value=''; return;
+  }
   if(t.dataset && t.dataset.p!==undefined && t.type==='time'){
     S.pumps[+t.dataset.p].sch[+t.dataset.j][t.dataset.f]=t.value||'00:00';
-    saveOvr(); render();
+    render();
   }
 });
 
@@ -653,6 +807,9 @@ document.getElementById('mManual').onclick=function(){
 };
 document.getElementById('scrub').oninput=function(){ S.manual=+this.value; render(); };
 
+var last=null; try{ last=localStorage.getItem('timerSite'); }catch(e){}
+loadSite(SITES[last]?last:'JEIP1');
+
 (function(){
   var sel=document.getElementById('site'), h='';
   Object.keys(SITES).forEach(function(k){
@@ -662,6 +819,19 @@ document.getElementById('scrub').oninput=function(){ S.manual=+this.value; rende
   sel.innerHTML=h;
   sel.onchange=function(){ loadSite(this.value); render(); };
   document.getElementById('siteNote').textContent='Timer settings for this pool';
+  document.getElementById('copyHist').onclick=function(){
+    var rows=LOG.filter(function(r){ return r.site===S.site; });
+    if(!rows.length) return;
+    var txt='Timer record — '+SITES[S.site].name+'\n'+rows.map(function(r){
+      return stamp(r.at)+' · '+(r.kind==='photo'?'Photo · '+r.timer+(r.link?' · '+r.link:'')
+        : r.timer+' '+r.before+' → '+r.after)+(r.reason?' · '+r.reason:'')+' · '+(r.who||'—');
+    }).join('\n');
+    var m=document.getElementById('copyMsg');
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){ m.textContent='Copied.'; });
+    } else { m.textContent='Long-press to select instead.'; }
+    setTimeout(function(){ m.textContent=''; }, 4000);
+  };
 })();
 
 render();
