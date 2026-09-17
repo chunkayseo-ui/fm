@@ -419,6 +419,24 @@ var SITES = {
         controls:['LED Banner'], load:'banner', sch:[{on:'19:00',off:'07:00'}] }
     ]
   },
+  /* Fresh air fan over the lounge ceiling. One Theben dial timer, three
+     periods a day, and a Schneider drive holding the fan speed. */
+  HSFAN: {
+    name:'HS — Fresh Air Fan (Lounge Ceiling)',
+    supply:'INCOMING LIGHTS',
+    selector:'MAN - OFF - AUTO',
+    note:'Fan panel — speed set by the drive inside',
+    heatPumps:0,
+    timers:[
+      { label:'Timer — Fresh air fan', device:'round', model:'Theben SUL 181d',
+        note:'Three periods a day. Segment pushed out = on — confirm this is the '+
+             'right way round on the Theben before relying on it.',
+        controls:['Fresh Air Fan'], row:'fan', load:'vsd', hz:'30.0',
+        sch:[{on:'05:45',off:'11:15'},
+             {on:'00:45',off:'01:30'},
+             {on:'03:00',off:'03:45'}] }
+    ]
+  },
   JEOP1: {
     name:'JEOP1',
     heatPumps:2,
@@ -435,7 +453,7 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN'];
 
 var PENDING = ['CC','DR','Lentor','HB','BK','WWW','TPY'];
 
@@ -457,7 +475,7 @@ function loadSite(id){
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
             controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
             row:(t.row||''), noTimer:!!t.noTimer, startSel:(t.startSel||''),
-            load:(t.load||''),
+            load:(t.load||''), hz:(t.hz||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
                changes the times only, so they are carried across */
@@ -498,6 +516,24 @@ function loadSite(id){
 /* ---------- markup built from the config ---------- */
 function buildPanel(){
   var html = S.pumps.map(function(p,i){
+    if(p.row==='fan'){
+      return '<div class="block">'+
+        '<div class="grid3"><div class="strip">RUN</div><div class="strip">STOP</div>'+
+        '<div class="strip">'+S.tripLabel+'</div></div>'+
+        '<div class="grid3">'+
+          '<div class="cell"><div class="lamp" id="run'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp" id="stp'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp" id="trp'+i+'" data-press="trip'+i+'" style="cursor:pointer"></div></div>'+
+        '</div>'+
+        '<div class="grid3" style="margin-top:10px"><div class="strip sel3">'+S.selLabel+'</div>'+
+        '<div class="strip">START</div><div class="strip">STOP</div></div>'+
+        '<div class="grid3">'+
+          '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="'+i+'"><i></i></div>'+
+            '<div class="knobtag" id="k'+i+'tag">AUTO</div></div></div>'+
+          '<div class="cell"><div class="lamp btn off-green" data-press="start'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp btn off-red" data-press="stop'+i+'"></div></div>'+
+        '</div></div>';
+    }
     if(p.row==='heater'){
       return '<div class="block">'+
         '<div class="htitle"><div class="strip">'+p.label.toUpperCase()+'</div>'+
@@ -605,6 +641,37 @@ function digitalSvg(i,label){
 
 /* The disc turns clockwise past a fixed pointer at the top, so a time still to
    come sits anti-clockwise of it — which is why the hours read anti-clockwise. */
+function vsdSvg(i,hz){
+  return '<div class="loadbox"><svg viewBox="0 0 230 120" width="100%" aria-label="Variable speed drive">'+
+  '<rect x="6" y="6" width="150" height="108" rx="6" fill="#3d444b" stroke="#252a2f"/>'+
+  '<rect x="14" y="14" width="46" height="16" rx="3" fill="#f2f4f1"/>'+
+  '<text x="37" y="26" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#1f7a3d">HVAC</text>'+
+  '<ellipse cx="96" cy="60" rx="48" ry="46" fill="#f4f5f2"/>'+
+  '<rect x="70" y="26" width="52" height="20" rx="2" fill="#1b1d1f"/>'+
+  '<text x="96" y="42" text-anchor="middle" font-family="Arial" font-size="15" font-weight="bold" '+
+    'fill="#ff3b30" id="vhz'+i+'">'+hz+'</text>'+
+  '<text x="130" y="40" font-family="Arial" font-size="7" fill="#5c6165">Hz</text>'+
+  '<circle cx="76" cy="86" r="11" fill="#1f9d55" id="vrun'+i+'"/>'+
+  '<text x="76" y="89" text-anchor="middle" font-family="Arial" font-size="7" fill="#fff">RUN</text>'+
+  '<circle cx="112" cy="86" r="11" fill="#c2342c"/>'+
+  '<text x="112" y="89" text-anchor="middle" font-family="Arial" font-size="7" fill="#fff">STOP</text>'+
+  '<circle cx="172" cy="60" r="36" fill="none" stroke="#9aa0a6" stroke-width="2"/>'+
+  '<g id="vfan'+i+'" transform="rotate(0 172 60)">'+
+    '<path d="M172 60 L172 30 a30 30 0 0 1 20 12 Z" fill="#9aa0a6"/>'+
+    '<path d="M172 60 L198 76 a30 30 0 0 1 -22 14 Z" fill="#9aa0a6"/>'+
+    '<path d="M172 60 L146 76 a30 30 0 0 1 -2 -26 Z" fill="#9aa0a6"/>'+
+  '</g>'+
+  '</svg><p class="mini" id="vcap'+i+'"></p></div>';
+}
+
+function drawVsd(i, running, hz){
+  document.getElementById('vhz'+i).textContent = running ? hz : '0.0';
+  document.getElementById('vrun'+i).setAttribute('fill', running ? '#28d17c' : '#1c5f3a');
+  document.getElementById('vcap'+i).textContent = running
+    ? 'Fan running — drive holding '+hz+' Hz'
+    : 'Fan stopped — drive idle';
+}
+
 function bannerSvg(i){
   return '<div class="loadbox"><svg viewBox="0 0 260 104" width="100%" '+
   'aria-label="LED banner"><g id="bsign'+i+'">'+
@@ -792,7 +859,7 @@ function buildCards(){
       '<div id="tl'+i+'"></div>'+
       '<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'+
       '<div class="state" id="st'+i+'"></div>'+
-      (t.load==='banner' ? bannerSvg(i) : '')+
+      (t.load==='banner' ? bannerSvg(i) : t.load==='vsd' ? vsdSvg(i, t.hz||'30.0') : '')+
       (RELAY_URL ? '<div class="photobox">'+
         '<div class="row"><input type="text" id="pnote'+i+'" placeholder="Note with the photo (optional)"></div>'+
         '<div class="row"><label class="apply" for="pf'+i+'">📷 Take timer photo</label>'+
@@ -1086,6 +1153,7 @@ function render(){
       st+='<br><span class="warn">No circulation pump is running, so this stays off whatever the timer says.</span>';
     document.getElementById('st'+i).innerHTML=st;
     if(t.load==='banner') drawBanner(i, closed);
+    if(t.load==='vsd') drawVsd(i, closed, t.hz||'30.0');
   });
 
   for(var k=0;k<S.heatCount;k++){
