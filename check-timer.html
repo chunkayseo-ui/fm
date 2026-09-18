@@ -189,6 +189,9 @@ input[type=number]{width:70px}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .checkline{font-size:13px;font-weight:600;margin:0 0 8px;display:flex;gap:7px;align-items:baseline;flex-wrap:wrap}
 .checkline .who{font-weight:400;color:var(--muted)}
+.rm-link{font:inherit;font-size:11.5px;font-weight:400;background:transparent;border:0;
+  color:var(--muted);text-decoration:underline;cursor:pointer;padding:0;margin-left:8px}
+.rm-link:hover{color:var(--fg)}
 .ck-done{color:#0d7d6b}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ck-done{color:#4cc4ae}}
 :root[data-theme="dark"] .ck-done{color:#4cc4ae}
@@ -1417,7 +1420,9 @@ function drawChecks(){
     el.innerHTML = rec
       ? '<span class="ck-done">✓ Checked this week</span>'+
         '<span class="who">'+esc(shortStamp(rec.at))+(rec.who?' · '+esc(rec.who):'')+'</span>'+
-        (fileIdOf(rec) ? '<span style="flex-basis:100%">'+photoThumbHtml(rec)+'</span>' : '')
+        (fileIdOf(rec) ? '<span style="flex-basis:100%">'+photoThumbHtml(rec)+'</span>' : '')+
+        (rec.id ? '<button type="button" class="rm-link" data-rmrec="'+esc(rec.id)+
+                  '">Wrong photo? Remove it</button>' : '')
       : '<span class="ck-todo">Not checked this week</span>'+
         '<span class="who">the photo is the proof</span>';
     var lab=document.getElementById('plab'+i);
@@ -1602,15 +1607,41 @@ function addRecord(r){
   r.at=new Date().toISOString();
   r.site=S.site; r.siteName=SITES[S.site].name;
   if(CLOUD){
-    CLOUD.collection(LOG_COLL).add(r).catch(function(){ CLOUD_OK=false; syncNote(); });
+    CLOUD.collection(LOG_COLL).add(r).then(function(ref){ r.id=ref.id; })
+      ['catch'](function(){ CLOUD_OK=false; syncNote(); });
   }
   LOG.unshift(r); if(LOG.length>300) LOG.length=300;
   saveLog(); drawHistory(); drawChecks();
 }
+
+/* The wrong photo happens: the camera fires early, or a technician taps the
+   wrong timer. Taking it back out puts the timer back to "not checked", so
+   the week's list stays honest. The picture itself is already in Drive and
+   has gone to the group, so nothing is quietly erased. */
+function removeRecord(id){
+  if(!id) return;
+  var r = null;
+  for(var i=0;i<LOG.length;i++){ if(LOG[i].id===id){ r=LOG[i]; break; } }
+  var what = r && r.kind==='photo'
+    ? 'Remove this photo from the record?\n\n'+(r.timer||'')+
+      '\n'+(r.who||'')+' · '+(r.at?shortStamp(r.at):'')+
+      '\n\nThe timer goes back to "not checked this week". The photo stays in Drive and in the group chat.'
+    : 'Remove this entry from the record?';
+  if(!confirm(what)) return;
+  LOG = LOG.filter(function(x){ return x.id!==id; });
+  saveLog(); drawHistory(); drawChecks();
+  if(CLOUD) CLOUD.collection(LOG_COLL).doc(id).delete()['catch'](function(){
+    CLOUD_OK=false; syncNote();
+  });
+}
+/* A weekly check on fifteen panels adds up fast, so the record opens short:
+   the newest few, and the rest a tap away. */
+var HIST_STEP=6, histShown=HIST_STEP;
 function drawHistory(){
   var box=document.getElementById('histList'); if(!box) return;
-  var rows=LOG.filter(function(r){ return r.site===S.site; });
-  if(!rows.length){ box.innerHTML='<p class="mini">Nothing recorded for this pool yet.</p>'; return; }
+  var all=LOG.filter(function(r){ return r.site===S.site; });
+  if(!all.length){ box.innerHTML='<p class="mini">Nothing recorded for this pool yet.</p>'; return; }
+  var rows=all.slice(0, histShown);
   box.innerHTML=rows.map(function(r){
     var head='<div class="rechead">'+(r.kind==='photo'?'Photo taken':r.timer)+'</div>';
     var body='';
@@ -1644,8 +1675,26 @@ function drawHistory(){
     }
     return '<div class="logrow">'+head+body+
       (r.reason?'<div class="recwhy">'+r.reason+'</div>':'')+
-      '<div class="logmeta">'+(r.who||'—')+' · '+stamp(r.at)+'</div></div>';
+      '<div class="logmeta">'+(r.who||'—')+' · '+stamp(r.at)+
+      (r.id?'<button type="button" class="rm-link" data-rmrec="'+esc(r.id)+'">remove</button>':'')+
+      '</div></div>';
   }).join('');
+  if(all.length>rows.length){
+    box.innerHTML += '<div class="row" style="margin-top:10px">'+
+      '<button class="apply" id="histMore">Show '+
+      Math.min(HIST_STEP, all.length-rows.length)+' more</button>'+
+      '<span class="mini">'+rows.length+' of '+all.length+' shown</span></div>';
+    document.getElementById('histMore').onclick=function(){
+      histShown+=HIST_STEP; drawHistory();
+    };
+  } else if(all.length>HIST_STEP){
+    box.innerHTML += '<div class="row" style="margin-top:10px">'+
+      '<button class="del" id="histLess">Show fewer</button>'+
+      '<span class="mini">all '+all.length+' shown</span></div>';
+    document.getElementById('histLess').onclick=function(){
+      histShown=HIST_STEP; drawHistory();
+    };
+  }
 }
 
 /* ================= SHARED STORAGE =================
@@ -1697,10 +1746,13 @@ function cloudWatch(id){
     syncNote();
   }, function(){ CLOUD_OK=false; syncNote(); });
 
-  unsubLog = CLOUD.collection(LOG_COLL).orderBy('at','desc').limit(200)
+  unsubLog = CLOUD.collection(LOG_COLL).orderBy('at','desc').limit(400)
     .onSnapshot(function(snap){
       CLOUD_OK=true;
-      LOG = snap.docs.map(function(d){ return d.data(); });
+      /* keep the document id: without it a record can never be taken back out */
+      LOG = snap.docs.map(function(d){
+        var r=d.data(); r.id=d.id; return r;
+      });
       try{ localStorage.setItem('timerLog', JSON.stringify(LOG.slice(0,100))); }catch(e){}
       drawHistory(); drawChecks(); syncNote();
     }, function(){ CLOUD_OK=false; syncNote(); });
@@ -1949,6 +2001,8 @@ function buildHowTo(){
 
 /* ---- events ---- */
 document.addEventListener('click', function(e){
+  var rm=e.target.closest('[data-rmrec]');
+  if(rm){ removeRecord(rm.dataset.rmrec); return; }
   var pv=e.target.closest('[data-photoview]');
   if(pv){ openPhoto(pv.dataset.photoview, pv.dataset.photocap||''); return; }
   var lb=document.getElementById('lightbox');
