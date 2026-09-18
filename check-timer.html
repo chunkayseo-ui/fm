@@ -189,6 +189,32 @@ input[type=number]{width:70px}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .checkline{font-size:13px;font-weight:600;margin:0 0 8px;display:flex;gap:7px;align-items:baseline;flex-wrap:wrap}
 .checkline .who{font-weight:400;color:var(--muted)}
+/* ---------- embedded in the round tracker ---------- */
+body.embed{padding:12px 12px 24px}
+body.embed h1,body.embed .sub,body.embed #site,body.embed #siteNote,body.embed #ovrNote,
+body.embed #pendNote,body.embed #weekNote,body.embed #timerCards,
+body.embed #syncNote,body.embed .controls>.card:not(#embedSummary){display:none}
+body.embed .controls{margin-top:14px}
+body.embed #embedHead{display:block!important}
+body.embed .panel{pointer-events:none}          /* a read-only picture of the door */
+.emb-now{font-size:15px;margin:0 0 10px;color:var(--muted)}
+.emb-now b{font-size:26px;color:var(--fg);font-variant-numeric:tabular-nums;margin-right:6px}
+.emb-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.emb-tab{font:inherit;font-size:12.5px;padding:7px 12px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);color:var(--fg)}
+.emb-tab.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.emb-row{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding:9px 0;
+  border-top:1px solid var(--line);font-size:13.5px}
+.emb-row:first-of-type{border-top:0}
+.emb-name{flex:1 1 auto;min-width:0;font-weight:600}
+.emb-state{font-weight:600}
+.emb-run{color:#0d7d6b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .emb-run{color:#4cc4ae}}
+:root[data-theme="dark"] .emb-run{color:#4cc4ae}
+.emb-stop{color:var(--muted)}
+.emb-when{flex-basis:100%;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.emb-foot{font-size:12px;color:var(--muted);margin:12px 0 0;line-height:1.5}
+.emb-foot a{color:var(--accent)}
 .lastup{font-size:12.5px;color:var(--muted);margin:10px 0 0;padding-top:9px;
   border-top:1px solid var(--line)}
 .lastup b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
@@ -329,6 +355,10 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
   <p class="mini" id="ovrNote" style="display:none;margin:-6px 0 14px"></p>
   <p class="mini" id="pendNote" style="display:none;margin:-6px 0 14px"></p>
   <p class="weeknote" id="weekNote"></p>
+  <div id="embedHead" hidden>
+    <p class="emb-now"><b id="embClock">--:--</b> <span id="embDay"></span></p>
+    <div class="emb-tabs" id="embTabs"></div>
+  </div>
 
   <!-- ================= PANEL ================= -->
   <div class="panel" id="panelWrap">
@@ -369,6 +399,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
     </div>
 
     <div id="boardWrap" style="display:none"></div>
+    <div class="card" id="embedSummary" hidden></div>
     <div id="timerCards"></div>
 
     <div class="card">
@@ -411,6 +442,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 var SITES = {
   JEIP1: {
     name:'JEIP1',
+    outlet:'JE',
     heatPumps:1,
     timers:[
       { label:'Circulation Pump 1', device:'hager', model:'Hager EH011',
@@ -425,6 +457,7 @@ var SITES = {
      own full row on the door, and different hours at the weekend. */
   JEIP2: {
     name:'JEIP2',
+    outlet:'JE',
     supply:'SUPPLY ON LIGHTS',
     note:'One timer runs both circulation pumps — duty and standby',
     heatPumps:0,
@@ -446,6 +479,7 @@ var SITES = {
      each pump has its own timer, so each is checked and set separately. */
   JEOP2: {
     name:'JEOP2',
+    outlet:'JE',
     supply:'SUPPLY ON LIGHTS',
     note:'Six digital timers — one per pump',
     heatPumps:0,
@@ -471,6 +505,7 @@ var SITES = {
      are off overnight. */
   LENTOR1: {
     name:'Lentor — Panel 1 (2 pumps)',
+    outlet:'LENTOR',
     supply:'MAIN INCOMING LIGHTS',
     note:'LCP-1 · two pumps, one digital timer each',
     heatPumps:0,
@@ -486,6 +521,7 @@ var SITES = {
      this door, not three, and the heater row ends at ON/OFF — no trip lamp. */
   LENTOR2: {
     name:'Lentor — Panel 2 (heat pump)',
+    outlet:'LENTOR',
     supply:'MAIN INCOMING LIGHT',
     supplyLamps:1,
     note:'LCP-2 · weekday and weekend hours differ',
@@ -507,6 +543,7 @@ var SITES = {
      technician stands in front of one panel at a time. */
   TENGAH1: {
     name:'Tengah — Panel 1',
+    outlet:'TENGAH',
     supply:'MAIN INCOMING LIGHTS',
     note:'Panel 1 of 2 — two pumps, one digital timer each',
     heatPumps:0,
@@ -521,6 +558,7 @@ var SITES = {
      each on its own digital timer, with different hours at the weekend. */
   TENGAH2: {
     name:'Tengah — Panel 2 (heat pump)',
+    outlet:'TENGAH',
     supply:'MAIN INCOMING LIGHTS',
     note:'Panel 2 of 2 — weekday and weekend hours differ',
     heatPumps:0,
@@ -542,6 +580,7 @@ var SITES = {
      timer at all — they follow their OFF-ON switch and the circulation. */
   HS: {
     name:'HS',
+    outlet:'HS',
     supply:'INCOMING SUPPLY LIGHT',
     note:'Six pumps · pumps 1, 3 and 4 on timers · pumps 2, 5 and 6 kept off',
     heatPumps:2,
@@ -569,6 +608,7 @@ var SITES = {
      No control panel, so only the timer card shows. */
   HSBANNER: {
     name:'HS — LED Banner',
+    outlet:'HS', aux:true,
     noPanel:true,
     heatPumps:0,
     timers:[
@@ -581,6 +621,7 @@ var SITES = {
      periods a day, and a Schneider drive holding the fan speed. */
   HSFAN: {
     name:'HS — Fresh Air Fan (Lounge Ceiling)',
+    outlet:'HS', aux:true,
     supply:'INCOMING LIGHTS',
     selector:'MAN - OFF - AUTO',
     note:'Fan panel — speed set by the drive inside',
@@ -600,6 +641,7 @@ var SITES = {
      fresh air fan, same panel layout, but no drive. */
   HSAIRMOVER: {
     name:'HS — Air Mover for heatpump',
+    outlet:'HS', aux:true,
     supply:'INCOMING LIGHT',
     selector:'MAN - OFF - AUTO',
     note:'LCP-SF-01-02 · air mover panel',
@@ -618,6 +660,7 @@ var SITES = {
      wrong, the page follows the equipment. */
   CC: {
     name:'CC — Pumps 1 & 3',
+    outlet:'CC',
     supply:'MAIN INCOMING LIGHT',
     note:'Door label reads PUMP 2 on the second row — it is Pump 3',
     heatPumps:0,
@@ -643,6 +686,7 @@ var SITES = {
      switch, which bypasses the timer and runs the pump. */
   CC24: {
     name:'CC — Pumps 2 & 4',
+    outlet:'CC',
     noPanel:true,
     board:true,
     heatPumps:0,
@@ -663,6 +707,7 @@ var SITES = {
      chlorinator lamp sits on the heat pump row. */
   BK: {
     name:'BK — Pumps Panel',
+    outlet:'BK',
     supply:'INCOMING LIGHT',
     selector:'AUTO  OFF  MAN',
     startLabel:'RUN',
@@ -685,6 +730,7 @@ var SITES = {
      Four periods a day — three short overnight runs, then the long daytime one. */
   BKFAN: {
     name:'BK — Exhaust Fan',
+    outlet:'BK', aux:true,
     noPanel:true,
     heatPumps:0,
     timers:[
@@ -700,6 +746,7 @@ var SITES = {
   /* No control panel at DR — one Hager roller timer on the wall, nothing else. */
   DR: {
     name:'DR',
+    outlet:'DR',
     noPanel:true,
     heatPumps:0,
     timers:[
@@ -709,6 +756,7 @@ var SITES = {
   },
   JEOP1: {
     name:'JEOP1',
+    outlet:'JE',
     heatPumps:2,
     selector:'AUTO OFF MAN',
     tripLabel:'TAIP',
@@ -726,6 +774,33 @@ var SITES = {
 var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','LENTOR1','LENTOR2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN','CC','CC24'];
 
 var PENDING = ['HB','WWW','TPY'];
+
+/* ---------- embedded view ----------
+   The dosing round tracker opens this page inside the "check the pump panel"
+   job, so a technician standing at the door sees what should be running
+   without leaving the round. ?embed=1&outlet=BK strips the page back to the
+   door and the timers for that outlet's pump panels. */
+var Q = (function(){
+  var o={};
+  location.search.replace(/^\?/,'').split('&').forEach(function(kv){
+    if(!kv) return;
+    var i=kv.indexOf('='), k=decodeURIComponent(i<0?kv:kv.slice(0,i));
+    o[k] = i<0 ? '' : decodeURIComponent(kv.slice(i+1).replace(/\+/g,' '));
+  });
+  return o;
+})();
+var EMBED = Q.embed==='1' || Q.embed==='true';
+var EMBED_OUTLET = (Q.outlet||'').toUpperCase();
+/* the pump panels at one outlet, in picker order — fans and signs left out */
+function panelsForOutlet(code){
+  code=String(code||'').toUpperCase();
+  var keys=ORDER.filter(function(k){ return SITES[k]; })
+    .concat(Object.keys(SITES).filter(function(k){ return ORDER.indexOf(k)<0; }));
+  return keys.filter(function(k){
+    var c=SITES[k];
+    return !c.aux && String(c.outlet||k).toUpperCase()===code;
+  });
+}
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
@@ -2091,6 +2166,7 @@ function drawDial(i, m, day){
 
 function render(){
   var m=nowMin(), d=nowDay(), r=runState(m,d);
+  drawEmbed();
   document.getElementById('clockTxt').textContent=fmt(m);
   var cd=document.getElementById('clockDay'); if(cd) cd.textContent=DAYS[d];
 
@@ -2181,6 +2257,83 @@ function dailyHours(p,d){
   var mins=0;
   for(var t=0;t<1440;t++) if(timerOn(p,t,d)) mins++;
   return (mins/60).toFixed(1);
+}
+
+/* What the technician needs at the door: the time the units should read, and
+   which motors should be turning right now. */
+var EMBED_NONE=false;
+function drawEmbed(){
+  if(!EMBED || EMBED_NONE) return;
+  var box=document.getElementById('embedSummary'); if(!box) return;
+  var m=nowMin(), d=nowDay(), r=runState(m,d);
+  var c=document.getElementById('embClock'), dy=document.getElementById('embDay');
+  if(c) c.textContent=fmt(m);
+  if(dy) dy.textContent='· '+DAYS[d]+' · every timer here should read this';
+
+  var rows=S.pumps.map(function(p,i){
+    var t=S.timers[p.t], run=r.run[i], bits=[];
+    if(t && !t.noTimer){
+      (t.sch||[]).forEach(function(w){
+        if(w.days && w.days.indexOf(d)<0) return;
+        bits.push(w.on+'–'+w.off);
+      });
+    }
+    var nx = (t && !t.noTimer) ? nextChange(t,m,d) : null;
+    var why = p.noTimer ? 'no timer — kept off at the selector'
+            : (bits.length? 'on today '+bits.join(', ') : 'no period set for today');
+    if(p.invert) why += ' · runs while the contact is open';
+    if(p.needsFlow && !r.flow) why += ' · no circulation, so it cannot run';
+    return '<div class="emb-row"><span class="emb-name">'+esc(p.label)+'</span>'+
+      '<span class="emb-state '+(run?'emb-run':'emb-stop')+'">'+(run?'should be RUNNING':'should be STOPPED')+'</span>'+
+      '<span class="emb-when">'+esc(why)+
+      (nx && !p.noTimer ? ' · next change '+fmt(nx.m)+(nx.sameDay?'':' ('+DAYS[nx.d]+')') : '')+
+      '</span></div>';
+  }).join('');
+  for(var k=0;k<S.heatCount;k++){
+    rows+='<div class="emb-row"><span class="emb-name">Heat pump'+(S.heatCount>1?' '+(k+1):'')+'</span>'+
+      '<span class="emb-state '+(r.flow?'emb-run':'emb-stop')+'">'+
+      (r.flow?'may run':'cannot run')+'</span>'+
+      '<span class="emb-when">follows its OFF-ON switch, and only with a circulation pump running</span></div>';
+  }
+  box.innerHTML='<h2>What should be happening now</h2>'+rows+
+    '<p class="emb-foot">Compare this with the real door. If a lamp disagrees, or a timer reads a '+
+    'different time, note it down. <a href="'+location.pathname+'?site='+encodeURIComponent(S.site)+
+    '" target="_blank" rel="noopener">Open the full timer page</a> to record the weekly check or edit times.</p>';
+  box.hidden=false;
+}
+
+function startEmbed(){
+  document.body.classList.add('embed');
+  var head=document.getElementById('embedHead'); if(head) head.hidden=false;
+  var keys=panelsForOutlet(EMBED_OUTLET);
+  var tabs=document.getElementById('embTabs');
+  if(!keys.length){
+    EMBED_NONE=true;
+    var sum=document.getElementById('embedSummary');
+    sum.innerHTML='<h2>Not set up yet</h2><p class="mini">No pump panel has been added for '+
+      esc(EMBED_OUTLET||'this outlet')+' yet, so there is nothing to compare against. '+
+      'Check the panel by eye and note anything odd.</p>';
+    sum.hidden=false;
+    var pw=document.getElementById('panelWrap'); if(pw) pw.style.display='none';
+    var hd=document.getElementById('embedHead'); if(hd) hd.hidden=true;
+    return;
+  }
+  if(tabs){
+    tabs.innerHTML = keys.length>1 ? keys.map(function(k){
+      return '<button type="button" class="emb-tab" data-embtab="'+k+'">'+esc(SITES[k].name)+'</button>';
+    }).join('') : '';
+    tabs.onclick=function(e){
+      var b=e.target.closest('[data-embtab]'); if(!b) return;
+      loadSite(b.dataset.embtab); render(); markEmbTab();
+    };
+  }
+  loadSite(keys[0]); render(); markEmbTab();
+}
+function markEmbTab(){
+  var tabs=document.getElementById('embTabs'); if(!tabs) return;
+  [].forEach.call(tabs.querySelectorAll('[data-embtab]'), function(b){
+    b.className='emb-tab'+(b.dataset.embtab===S.site?' on':'');
+  });
 }
 
 function buildHowTo(){
@@ -2397,6 +2550,9 @@ loadSite(SITES[last]?last:'JEIP1');
     setTimeout(function(){ m.textContent=''; }, 4000);
   };
 })();
+
+if(EMBED) startEmbed();
+else if(Q.site && SITES[Q.site]){ loadSite(Q.site); }   /* a direct link to one panel */
 
 render();
 setInterval(function(){ if(S.mode==='live') render(); }, 5000);
