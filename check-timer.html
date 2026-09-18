@@ -495,7 +495,7 @@ var SITES = {
      reads CIRCULATION PUMP 2, but the pump it drives is Pump 3 — the label is
      wrong, the page follows the equipment. */
   CC: {
-    name:'CC',
+    name:'CC — Pumps 1 & 3',
     supply:'MAIN INCOMING LIGHT',
     note:'Door label reads PUMP 2 on the second row — it is Pump 3',
     heatPumps:0,
@@ -513,6 +513,25 @@ var SITES = {
              {on:'00:01',off:'09:00',days:[5]},
              {on:'22:00',off:'06:00',days:[5]},
              {on:'13:00',off:'21:00',days:[0,6]}] }
+    ]
+  },
+
+  /* CC's second board: two Hager timers for pumps 2 and 4 in a distribution
+     board. No control panel, no lamps — the only control is each timer's own
+     switch, which bypasses the timer and runs the pump. */
+  CC24: {
+    name:'CC — Pumps 2 & 4',
+    noPanel:true,
+    heatPumps:0,
+    timers:[
+      { label:'Timer — Circulation Pump 2', device:'hager', model:'Hager EH011',
+        note:'No lamps on this board. The slider on the timer is the bypass: '+
+             '1 runs the pump whatever the tappets say, auto follows them.',
+        controls:['Circulation Pump 2'], sch:[{on:'07:00',off:'21:00'}] },
+      { label:'Timer — Circulation Pump 4', device:'hager', model:'Hager EH011',
+        note:'No lamps on this board. The slider on the timer is the bypass: '+
+             '1 runs the pump whatever the tappets say, auto follows them.',
+        controls:['Circulation Pump 4'], sch:[{on:'07:00',off:'21:00'}] }
     ]
   },
 
@@ -581,7 +600,7 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN','CC'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN','CC','CC24'];
 
 var PENDING = ['Lentor','HB','WWW','TPY'];
 
