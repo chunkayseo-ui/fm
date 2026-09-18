@@ -189,6 +189,15 @@ input[type=number]{width:70px}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .checkline{font-size:13px;font-weight:600;margin:0 0 8px;display:flex;gap:7px;align-items:baseline;flex-wrap:wrap}
 .checkline .who{font-weight:400;color:var(--muted)}
+.lastup{font-size:12.5px;color:var(--muted);margin:10px 0 0;padding-top:9px;
+  border-top:1px solid var(--line)}
+.lastup b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.lastup .lu-lab{text-transform:uppercase;letter-spacing:.05em;font-size:10.5px}
+.trec{margin:6px 0 0}
+.trec-btn{font:inherit;font-size:12.5px;background:transparent;border:0;padding:2px 0;
+  color:var(--accent);cursor:pointer;text-align:left}
+.trec-btn:disabled{color:var(--muted);cursor:default}
+.trec-body{margin-top:4px;border-left:2px solid var(--line);padding-left:10px}
 .rm-link{font:inherit;font-size:11.5px;font-weight:400;background:transparent;border:0;
   color:var(--muted);text-decoration:underline;cursor:pointer;padding:0;margin-left:8px}
 .rm-link:hover{color:var(--fg)}
@@ -360,9 +369,13 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 
     <div class="card">
       <h2>Timer record — this pool</h2>
-      <div id="histList"></div>
-      <div class="row" style="margin-top:12px"><button class="apply" id="copyHist">Copy for the group</button>
-        <span class="mini" id="copyMsg"></span></div>
+      <p class="mini" id="histSummary" style="margin:-4px 0 8px"></p>
+      <button type="button" class="trec-btn" id="histToggle"></button>
+      <div id="histWrap" hidden>
+        <div id="histList"></div>
+        <div class="row" style="margin-top:12px"><button class="apply" id="copyHist">Copy for the group</button>
+          <span class="mini" id="copyMsg"></span></div>
+      </div>
     </div>
 
     <div class="card">
@@ -1365,6 +1378,9 @@ function buildCards(){
       '<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'+
       '<div class="state" id="st'+i+'"></div>'+
       (t.load==='banner' ? bannerSvg(i) : t.load==='vsd' ? vsdSvg(i, t.hz||'30.0') : '')+
+      '<div class="lastup" id="lu'+i+'"></div>'+
+      '<div class="trec"><button type="button" class="trec-btn" data-trec="'+i+'" id="trb'+i+'"></button>'+
+        '<div class="trec-body" id="trl'+i+'" hidden></div></div>'+
       (RELAY_URL ? '<div class="photobox">'+
         '<div class="checkline" id="ck'+i+'"></div>'+
         '<div class="row" id="pwhorow'+i+'" style="display:none">'+
@@ -1413,7 +1429,43 @@ function shortStamp(iso){
   return DAYS[d.getDay()].slice(0,3)+' '+d.getDate()+' '+MON[d.getMonth()]+
          ' · '+pad(d.getHours())+':'+pad(d.getMinutes());
 }
+/* Each timer carries its own history, so a technician standing at one unit
+   reads only that unit's entries. It stays shut until asked for. */
+var TREC_OPEN={};
+function recordsFor(site, timerLabel){
+  return LOG.filter(function(r){ return r.site===site && r.timer===timerLabel; });
+}
+function lastChange(site, timerLabel){
+  var rows=recordsFor(site, timerLabel);
+  for(var i=0;i<rows.length;i++){ if(rows[i].kind!=='photo') return rows[i]; }
+  return null;
+}
+function drawTimerRecords(){
+  S.timers.forEach(function(t,i){
+    var lu=document.getElementById('lu'+i);
+    if(lu){
+      var ch=lastChange(S.site, t.label);
+      lu.innerHTML = ch
+        ? '<span class="lu-lab">Times last changed</span> <b>'+esc(stamp(ch.at))+'</b>'+
+          (ch.who?' <span class="lu-who">· '+esc(ch.who)+'</span>':'')
+        : '<span class="lu-lab">Times never changed here</span> '+
+          '<span class="lu-who">· still the settings this page was set up with</span>';
+    }
+    var btn=document.getElementById('trb'+i), body=document.getElementById('trl'+i);
+    if(!btn || !body) return;
+    var rows=recordsFor(S.site, t.label);
+    var open=!!TREC_OPEN[t.label];
+    btn.textContent = (open?'▾ ':'▸ ')+'Record for this timer'+(rows.length?' ('+rows.length+')':' — nothing yet');
+    btn.disabled = !rows.length;
+    body.hidden = !open || !rows.length;
+    if(open && rows.length){
+      body.innerHTML = rows.map(function(r){ return recordRowHtml(r, false); }).join('');
+    }
+  });
+}
+
 function drawChecks(){
+  drawTimerRecords();
   S.timers.forEach(function(t,i){
     var el=document.getElementById('ck'+i); if(!el) return;
     var rec=checkedThisWeek(S.site, t.label);
@@ -1637,16 +1689,16 @@ function removeRecord(id){
 /* A weekly check on fifteen panels adds up fast, so the record opens short:
    the newest few, and the rest a tap away. */
 var HIST_STEP=6, histShown=HIST_STEP;
-function drawHistory(){
-  var box=document.getElementById('histList'); if(!box) return;
-  var all=LOG.filter(function(r){ return r.site===S.site; });
-  if(!all.length){ box.innerHTML='<p class="mini">Nothing recorded for this pool yet.</p>'; return; }
-  var rows=all.slice(0, histShown);
-  box.innerHTML=rows.map(function(r){
-    var head='<div class="rechead">'+(r.kind==='photo'?'Photo taken':r.timer)+'</div>';
+/* One entry, drawn the same way whether it is read on its own timer's card or
+   in the pool's list. `showTimer` is off on a timer's own card, where the
+   heading would only repeat the card title. */
+function recordRowHtml(r, showTimer){
+    var head = showTimer===false
+      ? '<div class="rechead">'+(r.kind==='photo'?'Photo taken':'Times changed')+'</div>'
+      : '<div class="rechead">'+(r.kind==='photo'?'Photo taken':r.timer)+'</div>';
     var body='';
     if(r.kind==='photo'){
-      body='<div class="recline">'+r.timer+'</div>'+photoThumbHtml(r);
+      body=(showTimer===false?'':'<div class="recline">'+r.timer+'</div>')+photoThumbHtml(r);
     } else if((r.beforeList && r.afterList) || (r.before && r.after)){
       var bl = r.beforeList || parseSchText(r.before);
       var al = r.afterList  || parseSchText(r.after);
@@ -1678,7 +1730,29 @@ function drawHistory(){
       '<div class="logmeta">'+(r.who||'—')+' · '+stamp(r.at)+
       (r.id?'<button type="button" class="rm-link" data-rmrec="'+esc(r.id)+'">remove</button>':'')+
       '</div></div>';
-  }).join('');
+}
+
+/* Everything for the pool in one place, for a supervisor reading back — shut
+   by default, because each timer already carries its own entries. */
+var HIST_OPEN=false;
+function drawHistory(){
+  var box=document.getElementById('histList'); if(!box) return;
+  var all=LOG.filter(function(r){ return r.site===S.site; });
+  var sum=document.getElementById('histSummary'),
+      tog=document.getElementById('histToggle'),
+      wrap=document.getElementById('histWrap');
+  if(sum) sum.textContent = all.length
+    ? all.length+' entr'+(all.length>1?'ies':'y')+' · newest '+stamp(all[0].at)
+    : 'Nothing recorded for this pool yet.';
+  if(tog){
+    tog.textContent=(HIST_OPEN?'▾ Hide':'▸ Show')+' the whole pool record';
+    tog.disabled=!all.length;
+    tog.style.display=all.length?'':'none';
+  }
+  if(wrap) wrap.hidden = !HIST_OPEN || !all.length;
+  if(!HIST_OPEN || !all.length) return;
+  var rows=all.slice(0, histShown);
+  box.innerHTML=rows.map(function(r){ return recordRowHtml(r, true); }).join('');
   if(all.length>rows.length){
     box.innerHTML += '<div class="row" style="margin-top:10px">'+
       '<button class="apply" id="histMore">Show '+
@@ -2003,6 +2077,13 @@ function buildHowTo(){
 document.addEventListener('click', function(e){
   var rm=e.target.closest('[data-rmrec]');
   if(rm){ removeRecord(rm.dataset.rmrec); return; }
+  if(e.target.closest('#histToggle')){ HIST_OPEN=!HIST_OPEN; drawHistory(); return; }
+  var tr=e.target.closest('[data-trec]');
+  if(tr){
+    var lbl=S.timers[+tr.dataset.trec].label;
+    TREC_OPEN[lbl]=!TREC_OPEN[lbl];
+    drawTimerRecords(); return;
+  }
   var pv=e.target.closest('[data-photoview]');
   if(pv){ openPhoto(pv.dataset.photoview, pv.dataset.photocap||''); return; }
   var lb=document.getElementById('lightbox');
