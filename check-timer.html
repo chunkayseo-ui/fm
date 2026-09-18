@@ -163,11 +163,14 @@ input[type=number]{width:70px}
 .logmeta{color:var(--muted);font-size:12px;margin-top:6px}
 .rechead{font-weight:600;font-size:13.5px;margin-bottom:5px}
 .recline{font-size:13px}
-.recrow{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:2px 0}
-.recday{min-width:78px;color:var(--muted);font-size:12px}
+.recrow{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:4px 8px;
+  border-left:3px solid var(--accent);background:rgba(14,127,108,.07);border-radius:4px;margin-bottom:4px}
+.recrow.same{border-left-color:var(--line);background:transparent;padding-left:8px}
+.recday{min-width:76px;color:var(--fg);font-size:12px;font-weight:600}
+.recrow.same .recday{color:var(--muted);font-weight:400}
 .rectime{font-variant-numeric:tabular-nums}
-.rectime.old{color:var(--muted);text-decoration:line-through}
-.rectime.new{font-weight:700}
+.rectime.old{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--bad)}
+.rectime.new{font-weight:700;color:var(--accent)}
 .recarrow{color:var(--muted)}
 .recnote{color:var(--muted);font-size:12px}
 .recrow.same .rectime{color:var(--muted)}
@@ -197,11 +200,14 @@ input[type=number]{width:70px}
 .logmeta{color:var(--muted);font-size:12px;margin-top:6px}
 .rechead{font-weight:600;font-size:13.5px;margin-bottom:5px}
 .recline{font-size:13px}
-.recrow{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:2px 0}
-.recday{min-width:78px;color:var(--muted);font-size:12px}
+.recrow{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:4px 8px;
+  border-left:3px solid var(--accent);background:rgba(14,127,108,.07);border-radius:4px;margin-bottom:4px}
+.recrow.same{border-left-color:var(--line);background:transparent;padding-left:8px}
+.recday{min-width:76px;color:var(--fg);font-size:12px;font-weight:600}
+.recrow.same .recday{color:var(--muted);font-weight:400}
 .rectime{font-variant-numeric:tabular-nums}
-.rectime.old{color:var(--muted);text-decoration:line-through}
-.rectime.new{font-weight:700}
+.rectime.old{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--bad)}
+.rectime.new{font-weight:700;color:var(--accent)}
 .recarrow{color:var(--muted)}
 .recnote{color:var(--muted);font-size:12px}
 .recrow.same .rectime{color:var(--muted)}
@@ -346,7 +352,7 @@ var SITES = {
       { label:'Timer 2 — heat pump', device:'digital', model:'GIC time switch',
         note:'Different hours at the weekend — check the day on the display, not just the time.',
         controls:['Heat Pump'], needsFlow:true,
-        sch:[{on:'12:00',off:'18:00',days:[1,2,3,4,5]},
+        sch:[{on:'09:00',off:'18:00',days:[1,2,3,4,5]},
              {on:'08:00',off:'17:00',days:[0,6]}] }
     ]
   },
@@ -1186,6 +1192,12 @@ function dayWord(list){
 
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
 
+function parseSchText(txt){
+  var out=[], re=/(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})\s*(?:\(([^)]+)\))?/g, m;
+  while((m=re.exec(txt))!==null)
+    out.push({time:m[1]+'–'+m[2], days:(m[3]||'Every day')});
+  return out;
+}
 function schList(sch){
   return sch.map(function(w){
     return {time:w.on+'–'+w.off, days:(w.days?dayWord(w.days):'Every day')};
@@ -1273,7 +1285,10 @@ function drawHistory(){
     if(r.kind==='photo'){
       body='<div class="recline">'+r.timer+
         (r.link?' · <a href="'+r.link+'" target="_blank" rel="noopener">open photo</a>':'')+'</div>';
-    } else if(r.beforeList && r.afterList){
+    } else if((r.beforeList && r.afterList) || (r.before && r.after)){
+      var bl = r.beforeList || parseSchText(r.before);
+      var al = r.afterList  || parseSchText(r.after);
+      r = Object.assign({}, r, {beforeList:bl, afterList:al});
       var n=Math.max(r.beforeList.length, r.afterList.length);
       for(var j=0;j<n;j++){
         var b=r.beforeList[j], a=r.afterList[j];
