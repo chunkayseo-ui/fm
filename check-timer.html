@@ -187,6 +187,28 @@ input[type=number]{width:70px}
 .dchip.sel{background:var(--accent);border-color:var(--accent);color:#fff}
 .dchip.wide{border-style:dashed;color:var(--accent);border-color:var(--accent);background:transparent}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.checkline{font-size:13px;font-weight:600;margin:0 0 8px;display:flex;gap:7px;align-items:baseline;flex-wrap:wrap}
+.checkline .who{font-weight:400;color:var(--muted)}
+.ck-done{color:#0d7d6b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ck-done{color:#4cc4ae}}
+:root[data-theme="dark"] .ck-done{color:#4cc4ae}
+.ck-todo{color:#b4611a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ck-todo{color:#e2a15c}}
+:root[data-theme="dark"] .ck-todo{color:#e2a15c}
+.weeknote{font-size:12.5px;margin:-6px 0 14px;padding:8px 11px;border-radius:8px;
+  border:1px solid var(--line);background:var(--card)}
+.weeknote b{font-variant-numeric:tabular-nums}
+.wk-row{display:flex;gap:8px;align-items:baseline;font-size:13px;padding:6px 0;
+  border-top:1px solid var(--line)}
+.wk-row:first-child{border-top:0}
+.wk-name{flex:1 1 auto;min-width:0}
+.wk-count{font-variant-numeric:tabular-nums;font-weight:600}
+.wk-row.wk-all .wk-count{color:#0d7d6b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .wk-row.wk-all .wk-count{color:#4cc4ae}}
+:root[data-theme="dark"] .wk-row.wk-all .wk-count{color:#4cc4ae}
+.wk-row.wk-none .wk-count{color:#b4611a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .wk-row.wk-none .wk-count{color:#e2a15c}}
+:root[data-theme="dark"] .wk-row.wk-none .wk-count{color:#e2a15c}
 .tphotos{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px}
 .tphoto{padding:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;
   background:var(--surface);cursor:pointer;width:132px;font:inherit;display:block}
@@ -277,6 +299,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
   </div>
   <p class="mini" id="ovrNote" style="display:none;margin:-6px 0 14px"></p>
   <p class="mini" id="pendNote" style="display:none;margin:-6px 0 14px"></p>
+  <p class="weeknote" id="weekNote"></p>
 
   <!-- ================= PANEL ================= -->
   <div class="panel" id="panelWrap">
@@ -325,6 +348,12 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
 
     <div id="boardWrap" style="display:none"></div>
     <div id="timerCards"></div>
+
+    <div class="card">
+      <h2>Weekly check — every pool</h2>
+      <p class="mini" id="weekAllCap" style="margin:-4px 0 8px"></p>
+      <div id="weekAll"></div>
+    </div>
 
     <div class="card">
       <h2>Timer record — this pool</h2>
@@ -1201,7 +1230,16 @@ function photoError(e){
 
 function sendPhoto(i, file){
   var p=S.timers[i], msg=document.getElementById('pmsg'+i);
+  /* A proof photo with no name on it proves little, so ask once and remember. */
+  var wi=document.getElementById('pwho'+i);
+  var typed = wi ? (wi.value||'').trim() : '';
+  if(typed && typed!==WHO){ WHO=typed; try{ localStorage.setItem('timerWho', WHO); }catch(e){} }
   var who=WHO||'';
+  if(!who){
+    msg.textContent='Put your name in first — the photo is the proof that you did the check.';
+    if(wi) wi.focus();
+    return;
+  }
   var now=new Date();
   var cap=SITES[S.site].name+' · '+p.label+' · '+(who||'technician')+' · '+
           now.getDate()+' '+MON[now.getMonth()]+' '+pad(now.getHours())+':'+pad(now.getMinutes());
@@ -1218,7 +1256,7 @@ function sendPhoto(i, file){
                    fileId:j.fileId||null, thumb:j.thumb||null,
                    link:(j.url||j.link||null),
                    reason:(document.getElementById('pnote'+i).value||'').trim()});
-        msg.textContent='Photo saved.';
+        msg.textContent='Photo saved — this timer is marked checked for the week.';
         document.getElementById('pnote'+i).value='';
       })['catch'](function(e){
         msg.textContent=photoError(e);
@@ -1325,8 +1363,12 @@ function buildCards(){
       '<div class="state" id="st'+i+'"></div>'+
       (t.load==='banner' ? bannerSvg(i) : t.load==='vsd' ? vsdSvg(i, t.hz||'30.0') : '')+
       (RELAY_URL ? '<div class="photobox">'+
+        '<div class="checkline" id="ck'+i+'"></div>'+
+        '<div class="row" id="pwhorow'+i+'" style="display:none">'+
+          '<span class="lab">Your name</span>'+
+          '<input type="text" id="pwho'+i+'" placeholder="Technician" autocomplete="name"></div>'+
         '<div class="row"><input type="text" id="pnote'+i+'" placeholder="Note with the photo (optional)"></div>'+
-        '<div class="row"><label class="apply" for="pf'+i+'">📷 Take timer photo</label>'+
+        '<div class="row"><label class="apply" for="pf'+i+'" id="plab'+i+'">📷 Take timer photo</label>'+
         '<input type="file" id="pf'+i+'" accept="image/*" capture="environment" '+
         'data-photo="'+i+'" style="display:none"><span class="mini" id="pmsg'+i+'"></span></div>'+
         '</div>' : '')+
@@ -1334,6 +1376,85 @@ function buildCards(){
   }).join('');
   /* a "no timer" row has only a note card — no schedule box to fill */
   S.timers.forEach(function(t,i){ if(!t.noTimer) drawSchedules(i); });
+  drawChecks();
+}
+
+/* ---------- the weekly check ----------
+   Every timer is checked once a week: is it running, and is its clock right?
+   The photo is the proof, so there is nothing to tick — taking the photo is
+   what records the check. The week runs Monday to Sunday. */
+function weekStart(){
+  var x=new Date(); x.setHours(0,0,0,0);
+  x.setDate(x.getDate() - ((x.getDay()+6)%7));
+  return x.getTime();
+}
+function checkedThisWeek(site, timerLabel){
+  var start=weekStart();
+  for(var i=0;i<LOG.length;i++){
+    var r=LOG[i];
+    if(r.kind==='photo' && r.site===site && r.timer===timerLabel &&
+       new Date(r.at).getTime()>=start) return r;         /* LOG is newest first */
+  }
+  return null;
+}
+function realTimers(site){
+  return (SITES[site].timers||[]).filter(function(t){ return !t.noTimer; });
+}
+function checkTally(site){
+  var list=realTimers(site), done=0;
+  list.forEach(function(t){ if(checkedThisWeek(site, t.label)) done++; });
+  return {done:done, total:list.length};
+}
+function shortStamp(iso){
+  var d=new Date(iso);
+  return DAYS[d.getDay()].slice(0,3)+' '+d.getDate()+' '+MON[d.getMonth()]+
+         ' · '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+function drawChecks(){
+  S.timers.forEach(function(t,i){
+    var el=document.getElementById('ck'+i); if(!el) return;
+    var rec=checkedThisWeek(S.site, t.label);
+    el.innerHTML = rec
+      ? '<span class="ck-done">✓ Checked this week</span>'+
+        '<span class="who">'+esc(shortStamp(rec.at))+(rec.who?' · '+esc(rec.who):'')+'</span>'+
+        (fileIdOf(rec) ? '<span style="flex-basis:100%">'+photoThumbHtml(rec)+'</span>' : '')
+      : '<span class="ck-todo">Not checked this week</span>'+
+        '<span class="who">the photo is the proof</span>';
+    var lab=document.getElementById('plab'+i);
+    if(lab) lab.textContent = rec ? '📷 Take another photo' : '📷 Take photo to confirm the check';
+    var row=document.getElementById('pwhorow'+i);
+    if(row) row.style.display = WHO ? 'none' : '';
+    var wi=document.getElementById('pwho'+i);
+    if(wi && WHO) wi.value=WHO;
+  });
+
+  var note=document.getElementById('weekNote');
+  if(note){
+    var t=checkTally(S.site);
+    note.innerHTML = t.total===0 ? 'No timers to check at this pool.'
+      : t.done>=t.total
+        ? '<b>'+SITES[S.site].name+'</b> — all '+t.total+' timer'+(t.total>1?'s':'')+' checked this week.'
+        : '<b>'+SITES[S.site].name+'</b> — <b>'+t.done+' of '+t.total+'</b> timer'+
+          (t.total>1?'s':'')+' checked this week. '+(t.total-t.done)+' still to do.';
+  }
+  drawWeekAll();
+}
+/* Every pool on one list, so a supervisor can see who is behind without
+   opening each panel in turn. */
+function drawWeekAll(){
+  var box=document.getElementById('weekAll'); if(!box) return;
+  var keys=ORDER.filter(function(k){ return SITES[k]; })
+    .concat(Object.keys(SITES).filter(function(k){ return ORDER.indexOf(k)<0; }));
+  var doneAll=0, totalAll=0;
+  box.innerHTML = keys.map(function(k){
+    var t=checkTally(k); doneAll+=t.done; totalAll+=t.total;
+    var cls = t.total && t.done>=t.total ? 'wk-all' : (t.done===0 ? 'wk-none' : '');
+    return '<div class="wk-row '+cls+'"><span class="wk-name">'+esc(SITES[k].name)+'</span>'+
+           '<span class="wk-count">'+t.done+'/'+t.total+'</span></div>';
+  }).join('');
+  var cap=document.getElementById('weekAllCap');
+  if(cap) cap.textContent = 'Week of '+new Date(weekStart()).getDate()+' '+
+    MON[new Date(weekStart()).getMonth()]+' · '+doneAll+' of '+totalAll+' timers checked';
 }
 
 function save(){}
@@ -1484,7 +1605,7 @@ function addRecord(r){
     CLOUD.collection(LOG_COLL).add(r).catch(function(){ CLOUD_OK=false; syncNote(); });
   }
   LOG.unshift(r); if(LOG.length>300) LOG.length=300;
-  saveLog(); drawHistory();
+  saveLog(); drawHistory(); drawChecks();
 }
 function drawHistory(){
   var box=document.getElementById('histList'); if(!box) return;
@@ -1581,7 +1702,7 @@ function cloudWatch(id){
       CLOUD_OK=true;
       LOG = snap.docs.map(function(d){ return d.data(); });
       try{ localStorage.setItem('timerLog', JSON.stringify(LOG.slice(0,100))); }catch(e){}
-      drawHistory(); syncNote();
+      drawHistory(); drawChecks(); syncNote();
     }, function(){ CLOUD_OK=false; syncNote(); });
 }
 
