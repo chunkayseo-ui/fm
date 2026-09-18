@@ -338,14 +338,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
       <!-- MAIN INCOMING -->
       <div class="block">
         <div class="strip titlebar" id="supplyTitle" style="width:58%;margin:0 auto 4px">MAIN INCOMING LIGHT</div>
-        <div class="grid3">
-          <div class="strip">L1</div><div class="strip">L2</div><div class="strip">L3</div>
-        </div>
-        <div class="grid3">
-          <div class="cell"><div class="lamp on-white"></div></div>
-          <div class="cell"><div class="lamp on-white"></div></div>
-          <div class="cell"><div class="lamp on-white"></div></div>
-        </div>
+        <div id="supplyLamps"></div>
       </div>
 
       <div id="panelPumps"></div>
@@ -471,6 +464,43 @@ var SITES = {
       { label:'TS6 — Heater Pump 2', device:'digital', model:'GIC time switch',
         controls:['Heater Pump 2'], row:'heater', needsFlow:true,
         sch:[{on:'12:00',off:'22:00'}] }
+    ]
+  },
+  /* LCP-1 at Lentor: two circulation pumps, each on its own GIC digital timer
+     (TS1 and TS2 on the rail inside). They hand over at 15:00/15:05 and both
+     are off overnight. */
+  LENTOR1: {
+    name:'Lentor — Panel 1 (2 pumps)',
+    supply:'MAIN INCOMING LIGHTS',
+    note:'LCP-1 · two pumps, one digital timer each',
+    heatPumps:0,
+    timers:[
+      { label:'TS1 — Circulation Pump 1', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump 1'], sch:[{on:'08:00',off:'15:00'}] },
+      { label:'TS2 — Circulation Pump 2', device:'digital', model:'GIC time switch',
+        controls:['Circulation Pump 2'], sch:[{on:'15:05',off:'21:00'}] }
+    ]
+  },
+  /* LCP-2, the heat pump panel: one circulation pump and one heater pump, a
+     digital timer each, different hours at the weekend. One supply lamp on
+     this door, not three, and the heater row ends at ON/OFF — no trip lamp. */
+  LENTOR2: {
+    name:'Lentor — Panel 2 (heat pump)',
+    supply:'MAIN INCOMING LIGHT',
+    supplyLamps:1,
+    note:'LCP-2 · weekday and weekend hours differ',
+    heatPumps:0,
+    timers:[
+      { label:'TS1 — Circulation Pump', device:'digital', model:'GIC time switch',
+        note:'Different hours at the weekend — check the day on the display, not just the time.',
+        controls:['Circulation Pump'],
+        sch:[{on:'07:00',off:'19:00',days:[1,2,3,4,5]},
+             {on:'06:00',off:'18:00',days:[0,6]}] },
+      { label:'TS2 — Heater Pump', device:'digital', model:'GIC time switch',
+        note:'Different hours at the weekend. Heating only runs while the circulation pump is running.',
+        controls:['Heater Pump'], row:'heater', rowTitle:'span', needsFlow:true,
+        sch:[{on:'09:00',off:'17:00',days:[1,2,3,4,5]},
+             {on:'06:30',off:'18:00',days:[0,6]}] }
     ]
   },
   /* Tengah has two control panels. Each is listed separately, because a
@@ -693,9 +723,9 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN','CC','CC24'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','LENTOR1','LENTOR2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN','CC','CC24'];
 
-var PENDING = ['Lentor','HB','WWW','TPY'];
+var PENDING = ['HB','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
@@ -716,7 +746,8 @@ function loadSite(id){
     var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
             controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
-            row:(t.row||''), extra:(t.extra||''), noTimer:!!t.noTimer, startSel:(t.startSel||''),
+            row:(t.row||''), extra:(t.extra||''), rowTitle:(t.rowTitle||''),
+            noTimer:!!t.noTimer, startSel:(t.startSel||''),
             load:(t.load||''), hz:(t.hz||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
@@ -740,7 +771,8 @@ function loadSite(id){
     if(t.controls===null && t.panelOff) return;
     var names = t.controls || [t.label];
     names.forEach(function(nm){
-      S.pumps.push({label:nm, t:ti, row:(t.row||''), extra:(t.extra||''), invert:false, needsFlow:t.needsFlow,
+      S.pumps.push({label:nm, t:ti, row:(t.row||''), extra:(t.extra||''), rowTitle:(t.rowTitle||''),
+                    invert:false, needsFlow:t.needsFlow,
                     flow:!t.needsFlow, noTimer:!!t.noTimer,
                     sel:(t.startSel||'AUTO'), tripped:false, manRun:(t.startSel!=='OFF')});
     });
@@ -756,6 +788,22 @@ function loadSite(id){
   cloudWatch(id);
   var sup=document.getElementById('supplyTitle');
   if(sup) sup.textContent = cfg.supply || 'MAIN INCOMING LIGHT';
+  /* Some doors carry all three phases, others just one lamp. */
+  var sl=document.getElementById('supplyLamps');
+  if(sl){
+    var nl = cfg.supplyLamps!==undefined ? cfg.supplyLamps : 3;
+    if(nl<=0){ sl.innerHTML=''; }
+    else if(nl===1){
+      sl.innerHTML='<div class="cell"><div class="lamp on-white"></div></div>';
+    }else{
+      var lab='', lamp='';
+      for(var q=1;q<=nl;q++){
+        lab+='<div class="strip">L'+q+'</div>';
+        lamp+='<div class="cell"><div class="lamp on-white"></div></div>';
+      }
+      sl.innerHTML='<div class="grid'+nl+'">'+lab+'</div><div class="grid'+nl+'">'+lamp+'</div>';
+    }
+  }
   var nt=document.getElementById('siteNote');
   if(nt) nt.textContent = cfg.note || 'Timer settings for this pool';
   buildPanel(); buildCards(); drawOvrNote(); drawHistory(); buildHowTo();
@@ -808,8 +856,10 @@ function buildPanel(){
     }
     if(p.row==='heater'){
       return '<div class="block">'+
-        '<div class="htitle"><div class="strip">'+p.label.toUpperCase()+'</div>'+
-          '<div class="strip">HEATER</div></div>'+
+        (p.rowTitle==='span'
+          ? '<div class="strip titlebar span">'+p.label.toUpperCase()+'</div>'
+          : '<div class="htitle"><div class="strip">'+p.label.toUpperCase()+'</div>'+
+            '<div class="strip">HEATER</div></div>')+
         '<div class="grid5"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">START</div>'+
         '<div class="strip">STOP</div><div class="strip">ON</div><div class="strip">OFF</div></div>'+
         '<div class="grid5">'+
