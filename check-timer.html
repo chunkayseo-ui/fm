@@ -491,6 +491,31 @@ var SITES = {
     ]
   },
 
+  /* CC: two circulation pumps and a heat pump. The door label on the second row
+     reads CIRCULATION PUMP 2, but the pump it drives is Pump 3 — the label is
+     wrong, the page follows the equipment. */
+  CC: {
+    name:'CC',
+    supply:'MAIN INCOMING LIGHT',
+    note:'Door label reads PUMP 2 on the second row — it is Pump 3',
+    heatPumps:0,
+    timers:[
+      { label:'Timer 1 — Circulation Pump 1', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 1'], sch:[{on:'07:00',off:'21:00'}] },
+      { label:'Timer 2 — Circulation Pump 3', device:'hager', model:'Hager EH011',
+        note:'The panel strip above this row still reads CIRCULATION PUMP 2.',
+        controls:['Circulation Pump 3'], sch:[{on:'22:00',off:'06:00'}] },
+      { label:'Timer 3 — Heat pump', device:'digital', model:'GIC time switch',
+        note:'Four programmes, and they differ by day — check the day on the display. '+
+             'The Friday night one runs into Saturday morning.',
+        controls:['Heat Pump'], row:'onlamp', needsFlow:true,
+        sch:[{on:'00:01',off:'10:00',days:[1,2,3,4]},
+             {on:'00:01',off:'09:00',days:[5]},
+             {on:'22:00',off:'06:00',days:[5]},
+             {on:'13:00',off:'21:00',days:[0,6]}] }
+    ]
+  },
+
   /* BK pump panel: two circulation pumps on Hager roller timers, and the heat
      pump on a digital one with different weekday and weekend hours. The salt
      chlorinator lamp sits on the heat pump row. */
@@ -556,9 +581,9 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN','CC'];
 
-var PENDING = ['CC','Lentor','HB','WWW','TPY'];
+var PENDING = ['Lentor','HB','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
@@ -622,6 +647,16 @@ function loadSite(id){
 /* ---------- markup built from the config ---------- */
 function buildPanel(){
   var html = S.pumps.map(function(p,i){
+    if(p.row==='onlamp'){
+      return '<div class="block">'+
+        '<div class="strip titlebar" style="width:40%;margin:0 auto 4px">'+p.label.toUpperCase()+'</div>'+
+        '<div class="grid2"><div class="strip">OFF-ON</div><div class="strip">ON</div></div>'+
+        '<div class="grid2">'+
+          '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="'+i+'"><i></i></div>'+
+            '<div class="knobtag" id="k'+i+'tag">AUTO</div></div></div>'+
+          '<div class="cell"><div class="lamp" id="run'+i+'"></div></div>'+
+        '</div></div>';
+    }
     if(p.row==='simple'){
       var cols = p.extra ? 'grid4' : 'grid3';
       return '<div class="block">'+
@@ -1182,12 +1217,15 @@ function runState(m, d){
 var DAYSH=['SU','MO','TU','WE','TH','FR','SA'];
 var DAYFULL=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function dayWord(list){
-  if(!list) return '';
-  var s=list.slice().sort().join();
+  if(!list || !list.length) return '';
   if(list.length===7) return 'every day';
-  if(s===[1,2,3,4,5].join()) return 'Mon–Fri';
-  if(s===[0,6].join()) return 'Sat–Sun';
-  return list.slice().sort().map(function(d){ return DAYSH[d]; }).join(' ');
+  var ord=list.map(function(d){ return (d+6)%7; }).sort(function(a,b){ return a-b; });  /* Mon=0 */
+  var nm=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  var run=true;
+  for(var i=1;i<ord.length;i++) if(ord[i]!==ord[i-1]+1) run=false;
+  if(ord.length===1) return nm[ord[0]];
+  if(run) return nm[ord[0]]+'–'+nm[ord[ord.length-1]];
+  return ord.map(function(o){ return nm[o]; }).join(' ');
 }
 
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
@@ -1197,6 +1235,9 @@ function parseSchText(txt){
   while((m=re.exec(txt))!==null)
     out.push({time:m[1]+'–'+m[2], days:(m[3]||'Every day')});
   return out;
+}
+function fmtSchAll(timers){
+  return timers.map(function(t){ return fmtSch(t.sch); }).join(' · ');
 }
 function schList(sch){
   return sch.map(function(w){
@@ -1331,7 +1372,7 @@ var FB_CONFIG = {
   appId: "1:169864970579:web:bfb7490d0aebcfed17e1a6"
 };
 var SET_COLL='timer_settings', LOG_COLL='timer_changes';
-var CLOUD=null, CLOUD_OK=false, unsubSet=null, unsubLog=null;
+var CLOUD=null, CLOUD_OK=false, HAS_SET=false, unsubSet=null, unsubLog=null;
 
 var CLOUD_ERR='';
 function cloudInit(){
@@ -1353,6 +1394,7 @@ function cloudWatch(id){
   unsubSet = CLOUD.collection(SET_COLL).doc(id).onSnapshot(function(doc){
     CLOUD_OK=true;
     var d = doc.exists ? doc.data() : null;
+    HAS_SET = !!(d && d.timers && d.timers.length);
     if(d && d.timers && d.timers.length){
       d.timers.forEach(function(ct, ti){
         if(S.timers[ti] && ct && ct.sch)
@@ -1400,9 +1442,26 @@ function clearOvr(){
 function syncNote(){
   var el=document.getElementById('ovrNote'); if(!el) return;
   if(CLOUD_OK){
-    el.innerHTML='Shared with the team — changes show on every phone. '+
-      '<button class="del" id="ovrReset">Reset to the built-in times</button>';
-    var b=document.getElementById('ovrReset'); if(b) b.onclick=clearOvr;
+    el.innerHTML='Shared with the team — changes show on every phone.'+
+      (HAS_SET ? ' <button class="del" id="ovrReset">Reset to the built-in times</button>' : '');
+    var b=document.getElementById('ovrReset');
+    if(b) b.onclick=function(){
+      if(b.dataset.sure){
+        var beforeList=[];
+        S.timers.forEach(function(t){ beforeList=beforeList.concat(schList(t.sch)); });
+        var afterList=[];
+        SITES[S.site].timers.forEach(function(t){ afterList=afterList.concat(schList(t.sch)); });
+        addRecord({kind:'change', timer:'All timers — reset',
+                   before:fmtSchAll(S.timers), after:fmtSchAll(SITES[S.site].timers),
+                   beforeList:beforeList, afterList:afterList,
+                   who:(WHO||'—'), reason:'Reset to the built-in times'});
+        clearOvr();
+      } else {
+        b.dataset.sure='1'; b.textContent='Tap again to reset';
+        setTimeout(function(){ if(b.parentNode){ b.removeAttribute('data-sure');
+          b.textContent='Reset to the built-in times'; } }, 5000);
+      }
+    };
     el.style.display='';
   } else if(CLOUD_ERR){
     el.innerHTML=CLOUD_ERR;
@@ -1490,6 +1549,8 @@ function render(){
     if(p.row==='heater'){
       setLamp('run'+i, run?'on-white':'off-white');
       setLamp('stp'+i, run?'off-red':'on-red');
+    } else if(p.row==='onlamp'){
+      setLamp('run'+i, run?'on-teal':'off-teal');
     } else if(p.row==='simple'){
       setLamp('run'+i, run?'on-green':'off-green');
       setLamp('stp'+i, run?'off-red':'on-red');
