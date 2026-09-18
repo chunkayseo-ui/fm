@@ -1247,7 +1247,8 @@ function buildCards(){
         '</div>' : '')+
       '</div></div></div>';
   }).join('');
-  S.timers.forEach(function(t,i){ drawSchedules(i); });
+  /* a "no timer" row has only a note card — no schedule box to fill */
+  S.timers.forEach(function(t,i){ if(!t.noTimer) drawSchedules(i); });
 }
 
 function save(){}
@@ -1335,6 +1336,7 @@ function fmtSch(sch){
 
 function drawSchedules(i){
   var box=document.getElementById('sch'+i), p=S.timers[i], h='';
+  if(!box) return;
   if(!EDIT[i]){
     h = p.sch.length
       ? p.sch.map(function(w,j){
@@ -1561,6 +1563,7 @@ var drawOvrNote = syncNote;
    pair shows the handover rather than one ambiguous stripe. */
 function drawTimeline(i, m, d){
   var t=S.timers[i], el=document.getElementById('tl'+i), h='';
+  if(!el) return;
   var mine=S.pumps.filter(function(p){ return p.t===i; });
   if(!mine.length) mine=[{label:null, t:i, invert:false}];
   mine.forEach(function(p){
@@ -1647,6 +1650,7 @@ function render(){
   });
 
   S.timers.forEach(function(t,i){
+    if(t.noTimer) return;          /* note card only: no dial, no timeline, no state line */
     drawTimeline(i,m,d);
     if(t.device==='digital') drawDigital(i,m,d);
     else if(t.device==='theben') drawTheben(i,m);
