@@ -280,6 +280,8 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script>
 /* ================================================================
    TIMER SETTINGS — the only part that changes when a pool is added.
@@ -1206,12 +1208,16 @@ var FB_CONFIG = {
 var SET_COLL='timer_settings', LOG_COLL='timer_changes';
 var CLOUD=null, CLOUD_OK=false, unsubSet=null, unsubLog=null;
 
+var CLOUD_ERR='';
 function cloudInit(){
   try{
-    if(typeof firebase==='undefined') return;
+    if(typeof firebase==='undefined'){
+      CLOUD_ERR='The Firebase library did not load — this page is saving on this device only.';
+      return;
+    }
     if(!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
     CLOUD=firebase.firestore();
-  }catch(e){ CLOUD=null; }
+  }catch(e){ CLOUD=null; CLOUD_ERR='Could not start Firebase: '+(e&&e.message||'unknown error'); }
 }
 
 function cloudWatch(id){
@@ -1272,6 +1278,9 @@ function syncNote(){
     el.innerHTML='Shared with the team — changes show on every phone. '+
       '<button class="del" id="ovrReset">Reset to the built-in times</button>';
     var b=document.getElementById('ovrReset'); if(b) b.onclick=clearOvr;
+    el.style.display='';
+  } else if(CLOUD_ERR){
+    el.innerHTML=CLOUD_ERR;
     el.style.display='';
   } else if(readOvr()[S.site]){
     el.innerHTML='Not connected — this change is on this phone only and has not '+
