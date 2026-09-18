@@ -193,6 +193,10 @@ input[type=number]{width:70px}
   border-top:1px solid var(--line)}
 .lastup b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
 .lastup .lu-lab{text-transform:uppercase;letter-spacing:.05em;font-size:10.5px}
+.showrow .lab{width:auto;flex:0 0 auto}
+.showrow input[type=time]{font-variant-numeric:tabular-nums}
+.showrow .mini{flex:1 1 100%;margin-top:2px}
+.showrow .mini.ck-done,.showrow .mini.ck-todo{font-weight:600}
 .trec{margin:6px 0 0}
 .trec-btn{font:inherit;font-size:12.5px;background:transparent;border:0;padding:2px 0;
   color:var(--accent);cursor:pointer;text-align:left}
@@ -1170,19 +1174,33 @@ function drawDigital(i,m,today){
 var RELAY_URL='https://script.google.com/macros/s/AKfycbxLnXRzG3VsI9S0f801ju-Id8OqKHHgVMi_350Y98oZz3OJiM0NuoF5r95S9kgK7Vg6xg/exec';
 var RELAY_KEY='happyfish2026';
 
-function shrinkAndStamp(file, caption, cb){
+/* The time the photo was taken is the point of the photo: it is what the
+   timer's own display gets compared against. So it is burned in large on the
+   first line, with the pool, the unit and the technician underneath. */
+function shrinkAndStamp(file, lines, cb){
+  if(typeof lines==='string') lines=[lines];
   var fr=new FileReader();
   fr.onload=function(){
     var img=new Image();
     img.onload=function(){
       var w=img.width, h=img.height, max=1280;
       if(w>max||h>max){ var k=Math.min(max/w,max/h); w=Math.round(w*k); h=Math.round(h*k); }
-      var c=document.createElement('canvas'); c.width=w; c.height=h+34;
+      var big=Math.max(22, Math.round(w/26)), small=Math.max(13, Math.round(w/52));
+      var pad=Math.round(big*0.45);
+      var band=pad*2 + big + (lines.length-1)*Math.round(small*1.45);
+      var c=document.createElement('canvas'); c.width=w; c.height=h+band;
       var x=c.getContext('2d');
       x.fillStyle='#111'; x.fillRect(0,0,c.width,c.height);
       x.drawImage(img,0,0,w,h);
-      x.fillStyle='#fff'; x.font='bold 16px Arial'; x.textBaseline='middle';
-      x.fillText(caption, 10, h+17);
+      x.textBaseline='top'; x.fillStyle='#fff';
+      var y=h+pad;
+      x.font='bold '+big+'px Arial';
+      x.fillText(lines[0], pad, y);
+      y+=Math.round(big*1.08);
+      x.font=small+'px Arial'; x.fillStyle='#d9dcde';
+      for(var i=1;i<lines.length;i++){
+        x.fillText(lines[i], pad, y); y+=Math.round(small*1.45);
+      }
       cb(c.toDataURL('image/jpeg',0.82).split(',')[1]);
     };
     img.onerror=function(){ cb(null); };
@@ -1190,6 +1208,27 @@ function shrinkAndStamp(file, caption, cb){
   };
   fr.onerror=function(){ cb(null); };
   fr.readAsDataURL(file);
+}
+
+/* A timer that lost power runs slow, and the pump hours quietly shift with it.
+   The technician reads the unit's own display into this box; the page does the
+   subtraction, so nobody has to squint at two clocks. */
+function driftMinutes(shownHHMM, when){
+  if(!/^\d{1,2}:\d{2}$/.test(shownHHMM||'')) return null;
+  var actual=when.getHours()*60+when.getMinutes();
+  var d=((toMin(shownHHMM) - actual + 720 + 1440) % 1440) - 720;   /* nearest way round midnight */
+  return d;
+}
+function driftWord(d){
+  if(d===null || d===undefined) return '';
+  var a=Math.abs(d);
+  if(a<=2) return 'clock correct';
+  var txt = a>=60 ? Math.floor(a/60)+' h '+(a%60?(a%60)+' min':'') : a+' min';
+  return txt.trim()+(d<0?' slow':' fast');
+}
+function driftClass(d){
+  if(d===null || d===undefined) return '';
+  return Math.abs(d)<=2 ? 'ck-done' : 'ck-todo';
 }
 
 /* The relay hands back a one-time redirect, so two photos posted at the same
@@ -1257,10 +1296,17 @@ function sendPhoto(i, file){
     return;
   }
   var now=new Date();
-  var cap=SITES[S.site].name+' · '+p.label+' · '+(who||'technician')+' · '+
-          now.getDate()+' '+MON[now.getMonth()]+' '+pad(now.getHours())+':'+pad(now.getMinutes());
+  var si=document.getElementById('pshow'+i);
+  var shows=si ? (si.value||'').trim() : '';
+  var drift=driftMinutes(shows, now);
+  var clock=pad(now.getHours())+':'+pad(now.getMinutes());
+  var lines=[
+    clock+'  ·  '+DAYS[now.getDay()].slice(0,3)+' '+now.getDate()+' '+MON[now.getMonth()],
+    SITES[S.site].name+' · '+p.label,
+    (who||'technician') + (shows ? '   ·   timer shows '+shows+' — '+driftWord(drift) : '')
+  ];
   msg.textContent='Uploading photo…';
-  shrinkAndStamp(file, cap, function(b64){
+  shrinkAndStamp(file, lines, function(b64){
     if(!b64){ msg.textContent='Could not read that photo — try again.'; return; }
     var today = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
     relayUpload({key:RELAY_KEY, kind:'timer',
@@ -1271,9 +1317,16 @@ function sendPhoto(i, file){
         addRecord({kind:'photo', timer:p.label, who:who,
                    fileId:j.fileId||null, thumb:j.thumb||null,
                    link:(j.url||j.link||null),
+                   shows:shows||null, clock:clock,
+                   driftMin:(drift===null?null:drift),
                    reason:(document.getElementById('pnote'+i).value||'').trim()});
-        msg.textContent='Photo saved — this timer is marked checked for the week.';
+        msg.textContent = drift!==null && Math.abs(drift)>2
+          ? 'Photo saved — the clock is '+driftWord(drift)+'. Correct it and note it down.'
+          : 'Photo saved — this timer is marked checked for the week.';
         document.getElementById('pnote'+i).value='';
+        if(si) si.value='';
+        var hint=document.getElementById('pdrift'+i);
+        if(hint){ hint.textContent=''; hint.className='mini'; }
       })['catch'](function(e){
         msg.textContent=photoError(e);
         console.log('timer photo relay error', e);
@@ -1295,11 +1348,14 @@ function fileIdOf(r){
 function photoThumbHtml(r){
   var id=fileIdOf(r);
   if(!id) return r.link ? '<a href="'+r.link+'" target="_blank" rel="noopener">open photo</a>' : '';
+  var when = r.clock || (r.at ? pad(new Date(r.at).getHours())+':'+pad(new Date(r.at).getMinutes()) : '');
+  var cap = r.timer+' · '+(r.who||'')+' · '+stamp(r.at)+
+            (r.shows ? ' · timer read '+r.shows+' ('+driftWord(r.driftMin)+')' : '');
   return '<div class="tphotos"><button type="button" class="tphoto" data-photoview="'+id+
-    '" data-photocap="'+esc(r.timer+' · '+(r.who||'')+' · '+stamp(r.at))+'">'+
+    '" data-photocap="'+esc(cap)+'">'+
     '<img src="'+driveImg(id,400)+'" alt="" loading="lazy" '+
-    'onerror="this.parentNode.classList.add(\'tp-fail\')"><span class="tp-cap">Tap to enlarge</span>'+
-    '</button></div>';
+    'onerror="this.parentNode.classList.add(\'tp-fail\')"><span class="tp-cap">Taken '+
+    esc(when)+'</span></button></div>';
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 function openPhoto(fileId, caption){
@@ -1386,6 +1442,8 @@ function buildCards(){
         '<div class="row" id="pwhorow'+i+'" style="display:none">'+
           '<span class="lab">Your name</span>'+
           '<input type="text" id="pwho'+i+'" placeholder="Technician" autocomplete="name"></div>'+
+        '<div class="row showrow"><span class="lab">Timer display reads</span>'+
+          '<input type="time" id="pshow'+i+'"><span class="mini" id="pdrift'+i+'"></span></div>'+
         '<div class="row"><input type="text" id="pnote'+i+'" placeholder="Note with the photo (optional)"></div>'+
         '<div class="row"><label class="apply" for="pf'+i+'" id="plab'+i+'">📷 Take timer photo</label>'+
         '<input type="file" id="pf'+i+'" accept="image/*" capture="environment" '+
@@ -1472,6 +1530,9 @@ function drawChecks(){
     el.innerHTML = rec
       ? '<span class="ck-done">✓ Checked this week</span>'+
         '<span class="who">'+esc(shortStamp(rec.at))+(rec.who?' · '+esc(rec.who):'')+'</span>'+
+        (rec.shows ? '<span style="flex-basis:100%" class="'+driftClass(rec.driftMin)+'">'+
+          'Timer read <b>'+esc(rec.shows)+'</b> against <b>'+esc(rec.clock||'')+'</b> on the phone — '+
+          esc(driftWord(rec.driftMin))+'</span>' : '')+
         (fileIdOf(rec) ? '<span style="flex-basis:100%">'+photoThumbHtml(rec)+'</span>' : '')+
         (rec.id ? '<button type="button" class="rm-link" data-rmrec="'+esc(rec.id)+
                   '">Wrong photo? Remove it</button>' : '')
@@ -1698,7 +1759,10 @@ function recordRowHtml(r, showTimer){
       : '<div class="rechead">'+(r.kind==='photo'?'Photo taken':r.timer)+'</div>';
     var body='';
     if(r.kind==='photo'){
-      body=(showTimer===false?'':'<div class="recline">'+r.timer+'</div>')+photoThumbHtml(r);
+      body=(showTimer===false?'':'<div class="recline">'+r.timer+'</div>')+
+        (r.shows ? '<div class="recline '+driftClass(r.driftMin)+'">Timer read <b>'+esc(r.shows)+
+          '</b>, phone <b>'+esc(r.clock||'')+'</b> — '+esc(driftWord(r.driftMin))+'</div>' : '')+
+        photoThumbHtml(r);
     } else if((r.beforeList && r.afterList) || (r.before && r.after)){
       var bl = r.beforeList || parseSchText(r.before);
       var al = r.afterList  || parseSchText(r.after);
@@ -2168,6 +2232,20 @@ document.addEventListener('click', function(e){
     if(a.indexOf('stop')===0){ var i2=+a.slice(4); S.pumps[i2].manRun=false; }
     if(a.indexOf('trip')===0){ var i3=+a.slice(4); S.pumps[i3].tripped=!S.pumps[i3].tripped; }
     save(); render(); return;
+  }
+});
+
+/* Say what the gap is the moment it is typed, before the photo is even taken. */
+document.addEventListener('input', function(e){
+  var t=e.target;
+  if(t && /^pshow\d+$/.test(t.id||'')){
+    var i=t.id.slice(5), out=document.getElementById('pdrift'+i);
+    if(!out) return;
+    var d=driftMinutes((t.value||'').trim(), new Date());
+    out.className='mini '+driftClass(d);
+    out.textContent = d===null ? '' :
+      (Math.abs(d)<=2 ? '✓ matches the phone ('+fmt(nowMin())+')'
+                      : driftWord(d)+' — the pump hours have shifted with it');
   }
 });
 
