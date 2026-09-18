@@ -686,7 +686,7 @@ var SITES = {
      switch, which bypasses the timer and runs the pump. */
   CC24: {
     name:'CC — Pumps 2 & 4',
-    outlet:'CC',
+    outlet:'CC', aux:true,
     noPanel:true,
     board:true,
     heatPumps:0,
@@ -2305,13 +2305,15 @@ function drawEmbed(){
 function startEmbed(){
   document.body.classList.add('embed');
   var head=document.getElementById('embedHead'); if(head) head.hidden=false;
-  var keys=panelsForOutlet(EMBED_OUTLET);
+  /* JE has four pools under one outlet, and the round tracker knows which one
+     the job is for, so it asks for that panel by name. */
+  var keys = (Q.site && SITES[Q.site]) ? [Q.site] : panelsForOutlet(EMBED_OUTLET);
   var tabs=document.getElementById('embTabs');
   if(!keys.length){
     EMBED_NONE=true;
     var sum=document.getElementById('embedSummary');
     sum.innerHTML='<h2>Not set up yet</h2><p class="mini">No pump panel has been added for '+
-      esc(EMBED_OUTLET||'this outlet')+' yet, so there is nothing to compare against. '+
+      esc(Q.site||EMBED_OUTLET||'this outlet')+' yet, so there is nothing to compare against. '+
       'Check the panel by eye and note anything odd.</p>';
     sum.hidden=false;
     var pw=document.getElementById('panelWrap'); if(pw) pw.style.display='none';
