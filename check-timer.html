@@ -538,6 +538,7 @@ function loadSite(id){
   S.heat=[]; for(var k=0;k<S.heatCount;k++) S.heat.push('ON');
 
   try{ localStorage.setItem('timerSite', id); }catch(e){}
+  cloudWatch(id);
   var sup=document.getElementById('supplyTitle');
   if(sup) sup.textContent = cfg.supply || 'MAIN INCOMING LIGHT';
   var nt=document.getElementById('siteNote');
@@ -1169,6 +1170,9 @@ function stamp(iso){
 function addRecord(r){
   r.at=new Date().toISOString();
   r.site=S.site; r.siteName=SITES[S.site].name;
+  if(CLOUD){
+    CLOUD.collection(LOG_COLL).add(r).catch(function(){ CLOUD_OK=false; syncNote(); });
+  }
   LOG.unshift(r); if(LOG.length>300) LOG.length=300;
   saveLog(); drawHistory();
 }
@@ -1186,28 +1190,96 @@ function drawHistory(){
   }).join('');
 }
 
-/* edits are kept on this phone only; the pool's saved settings stay in SITES */
-function readOvr(){ try{ return JSON.parse(localStorage.getItem('timerOvr')||'{}'); }catch(e){ return {}; } }
-function saveOvr(){
-  var all=readOvr();
-  all[S.site]=S.timers.map(function(t){ return t.sch; });
-  try{ localStorage.setItem('timerOvr', JSON.stringify(all)); }catch(e){}
-  drawOvrNote();
+/* ================= SHARED STORAGE =================
+   Settings and records live in the maintenance-board Firestore project, so an
+   edit on one phone shows on every phone. If Firestore can't be reached the
+   page still works: it falls back to the built-in times and this device's own
+   copy, and says so. */
+var FB_CONFIG = {
+  apiKey: "AIzaSyANFCZbvRGO9aMRtG9MF_qONO3FL85CzSo",
+  authDomain: "maintenance-board-f931a.firebaseapp.com",
+  projectId: "maintenance-board-f931a",
+  storageBucket: "maintenance-board-f931a.firebasestorage.app",
+  messagingSenderId: "169864970579",
+  appId: "1:169864970579:web:bfb7490d0aebcfed17e1a6"
+};
+var SET_COLL='timer_settings', LOG_COLL='timer_changes';
+var CLOUD=null, CLOUD_OK=false, unsubSet=null, unsubLog=null;
+
+function cloudInit(){
+  try{
+    if(typeof firebase==='undefined') return;
+    if(!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    CLOUD=firebase.firestore();
+  }catch(e){ CLOUD=null; }
 }
+
+function cloudWatch(id){
+  if(!CLOUD) return;
+  if(unsubSet){ unsubSet(); unsubSet=null; }
+  if(unsubLog){ unsubLog(); unsubLog=null; }
+
+  unsubSet = CLOUD.collection(SET_COLL).doc(id).onSnapshot(function(doc){
+    CLOUD_OK=true;
+    var d = doc.exists ? doc.data() : null;
+    if(d && d.timers && d.timers.length){
+      d.timers.forEach(function(ct, ti){
+        if(S.timers[ti] && ct && ct.sch)
+          S.timers[ti].sch = ct.sch.map(function(w){
+            return {on:w.on, off:w.off, days:(w.days&&w.days.length?w.days.slice():null)}; });
+      });
+      S.timers.forEach(function(t,ti){ if(!EDIT[ti]) drawSchedules(ti); });
+      render();
+    }
+    syncNote();
+  }, function(){ CLOUD_OK=false; syncNote(); });
+
+  unsubLog = CLOUD.collection(LOG_COLL).orderBy('at','desc').limit(200)
+    .onSnapshot(function(snap){
+      CLOUD_OK=true;
+      LOG = snap.docs.map(function(d){ return d.data(); });
+      try{ localStorage.setItem('timerLog', JSON.stringify(LOG.slice(0,100))); }catch(e){}
+      drawHistory(); syncNote();
+    }, function(){ CLOUD_OK=false; syncNote(); });
+}
+
+function saveOvr(){                       /* called after a saved change */
+  var payload = S.timers.map(function(t){
+    return {sch: t.sch.map(function(w){
+      return {on:w.on, off:w.off, days:(w.days?w.days.slice():null)}; })};
+  });
+  if(CLOUD){
+    CLOUD.collection(SET_COLL).doc(S.site).set({
+      site:S.site, name:SITES[S.site].name, timers:payload,
+      updatedAt:new Date().toISOString(), updatedBy:(WHO||'')
+    }).catch(function(){ CLOUD_OK=false; syncNote(); });
+  }
+  var all=readOvr(); all[S.site]=S.timers.map(function(t){ return t.sch; });
+  try{ localStorage.setItem('timerOvr', JSON.stringify(all)); }catch(e){}
+  syncNote();
+}
+function readOvr(){ try{ return JSON.parse(localStorage.getItem('timerOvr')||'{}'); }catch(e){ return {}; } }
 function clearOvr(){
   var all=readOvr(); delete all[S.site];
   try{ localStorage.setItem('timerOvr', JSON.stringify(all)); }catch(e){}
+  if(CLOUD) CLOUD.collection(SET_COLL).doc(S.site).delete().catch(function(){});
   loadSite(S.site); render();
 }
-function drawOvrNote(){
+
+function syncNote(){
   var el=document.getElementById('ovrNote'); if(!el) return;
-  if(readOvr()[S.site]){
-    el.innerHTML='Edited on this phone — the saved settings for this pool are unchanged. '+
-      '<button class="del" id="ovrReset">Reset to saved</button>';
-    document.getElementById('ovrReset').onclick=clearOvr;
+  if(CLOUD_OK){
+    el.innerHTML='Shared with the team — changes show on every phone. '+
+      '<button class="del" id="ovrReset">Reset to the built-in times</button>';
+    var b=document.getElementById('ovrReset'); if(b) b.onclick=clearOvr;
     el.style.display='';
-  } else el.style.display='none';
+  } else if(readOvr()[S.site]){
+    el.innerHTML='Not connected — this change is on this phone only and has not '+
+      'reached the team yet. It will go up when the page next connects.';
+    el.style.display='';
+  } else { el.style.display='none'; }
 }
+var drawOvrNote = syncNote;
 
 /* One bar per row this timer drives, for the day on screen — so a duty/standby
    pair shows the handover rather than one ambiguous stripe. */
@@ -1491,6 +1563,7 @@ document.getElementById('scrub').oninput=function(){ S.manual=+this.value; rende
   dp.onchange=function(){ S.day=+this.value; render(); };
 })();
 
+cloudInit();
 var last=null; try{ last=localStorage.getItem('timerSite'); }catch(e){}
 loadSite(SITES[last]?last:'JEIP1');
 
