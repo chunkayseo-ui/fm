@@ -280,6 +280,19 @@ input[type=number]{width:70px}
 .recrow.same .rectime{color:var(--muted)}
 .recwhy{font-size:13px;font-style:italic;color:var(--fg);margin-top:5px}
 label.apply{cursor:pointer}
+/* The camera is the main thing a technician does on this card, so it looks
+   like a button and is big enough to hit with a thumb in a plant room. */
+.photobtn{display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  font:inherit;font-size:15px;font-weight:600;line-height:1.1;
+  padding:13px 18px;min-height:48px;border-radius:10px;border:0;
+  background:var(--accent);color:#fff;cursor:pointer;text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.2);flex:1 1 230px}
+.photobtn:active{transform:translateY(1px);filter:brightness(.93)}
+.photobtn .cam{font-size:18px}
+/* once the week's check is in, it steps back to a quieter outline */
+.photobtn.done{background:transparent;color:var(--accent);
+  border:1.5px solid var(--accent);box-shadow:none;font-weight:500;
+  font-size:13.5px;min-height:40px;padding:9px 14px}
 input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
   border:1px solid var(--line);background:var(--bg);color:var(--fg);flex:1 1 150px;min-width:130px}
 .lab{font-size:12.5px;width:80px;color:var(--muted)}
@@ -1434,6 +1447,9 @@ function buildCards(){
       '<div class="ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'+
       '<div class="state" id="st'+i+'"></div>'+
       (t.load==='banner' ? bannerSvg(i) : t.load==='vsd' ? vsdSvg(i, t.hz||'30.0') : '')+
+      /* the dial column ends here: the record and the weekly check belong to
+         the whole card, not to the narrow strip beside the picture */
+      '</div></div>'+
       '<div class="lastup" id="lu'+i+'"></div>'+
       '<div class="trec"><button type="button" class="trec-btn" data-trec="'+i+'" id="trb'+i+'"></button>'+
         '<div class="trec-body" id="trl'+i+'" hidden></div></div>'+
@@ -1445,11 +1461,13 @@ function buildCards(){
         '<div class="row showrow"><span class="lab">Timer display reads</span>'+
           '<input type="time" id="pshow'+i+'"><span class="mini" id="pdrift'+i+'"></span></div>'+
         '<div class="row"><input type="text" id="pnote'+i+'" placeholder="Note with the photo (optional)"></div>'+
-        '<div class="row"><label class="apply" for="pf'+i+'" id="plab'+i+'">📷 Take timer photo</label>'+
+        '<div class="row"><label class="photobtn" for="pf'+i+'" id="plab'+i+'" role="button" tabindex="0">'+
+        '<span class="cam" aria-hidden="true">📷</span><span id="plabtxt'+i+'">Take photo to confirm the check</span></label>'+
         '<input type="file" id="pf'+i+'" accept="image/*" capture="environment" '+
-        'data-photo="'+i+'" style="display:none"><span class="mini" id="pmsg'+i+'"></span></div>'+
+        'data-photo="'+i+'" style="display:none"></div>'+
+        '<div class="row"><span class="mini" id="pmsg'+i+'"></span></div>'+
         '</div>' : '')+
-      '</div></div></div>';
+      '</div>';
   }).join('');
   /* a "no timer" row has only a note card — no schedule box to fill */
   S.timers.forEach(function(t,i){ if(!t.noTimer) drawSchedules(i); });
@@ -1538,8 +1556,9 @@ function drawChecks(){
                   '">Wrong photo? Remove it</button>' : '')
       : '<span class="ck-todo">Not checked this week</span>'+
         '<span class="who">the photo is the proof</span>';
-    var lab=document.getElementById('plab'+i);
-    if(lab) lab.textContent = rec ? '📷 Take another photo' : '📷 Take photo to confirm the check';
+    var lab=document.getElementById('plab'+i), labtxt=document.getElementById('plabtxt'+i);
+    if(labtxt) labtxt.textContent = rec ? 'Take another photo' : 'Take photo to confirm the check';
+    if(lab) lab.className = 'photobtn'+(rec?' done':'');
     var row=document.getElementById('pwhorow'+i);
     if(row) row.style.display = WHO ? 'none' : '';
     var wi=document.getElementById('pwho'+i);
@@ -2276,6 +2295,9 @@ document.getElementById('mManual').onclick=function(){
 document.getElementById('scrub').oninput=function(){ S.manual=+this.value; render(); };
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape'){ var lb=document.getElementById('lightbox'); if(lb) lb.style.display='none'; }
+  /* the camera is a label, so give it the keyboard behaviour of a button */
+  if((e.key==='Enter'||e.key===' ') && e.target && e.target.classList &&
+     e.target.classList.contains('photobtn')){ e.preventDefault(); e.target.click(); }
 });
 (function(){
   var dp=document.getElementById('dayPick'), h='';
