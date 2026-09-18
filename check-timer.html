@@ -57,8 +57,10 @@ h1{font-size:19px;margin:0 0 2px}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;align-items:center}
 .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;align-items:center}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:58%;margin:0 auto}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:80%;margin:0 auto}
 .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;width:40%;margin:0 auto}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:58%;margin:0 auto}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:80%;margin:0 auto}
 .htitle{display:grid;grid-template-columns:3fr 2fr;gap:5px;margin-bottom:4px}
 .titlebar{margin:0 0 4px}
 .titlebar.span{margin-left:16.6%}
@@ -158,7 +160,18 @@ input[type=text]{flex:1 1 130px;min-width:110px}
 input[type=number]{width:70px}
 .logrow{border-top:1px solid var(--line);padding:9px 0;font-size:13px;line-height:1.5}
 .logrow:first-child{border-top:0}
-.logmeta{color:var(--muted);font-size:12px;margin-top:2px}
+.logmeta{color:var(--muted);font-size:12px;margin-top:6px}
+.rechead{font-weight:600;font-size:13.5px;margin-bottom:5px}
+.recline{font-size:13px}
+.recrow{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:2px 0}
+.recday{min-width:78px;color:var(--muted);font-size:12px}
+.rectime{font-variant-numeric:tabular-nums}
+.rectime.old{color:var(--muted);text-decoration:line-through}
+.rectime.new{font-weight:700}
+.recarrow{color:var(--muted)}
+.recnote{color:var(--muted);font-size:12px}
+.recrow.same .rectime{color:var(--muted)}
+.recwhy{font-size:13px;font-style:italic;color:var(--fg);margin-top:5px}
 .pill{display:inline-block;font-size:11px;padding:2px 7px;border-radius:99px;
   background:var(--line);margin-right:6px}
 .rm{float:right;font:inherit;font-size:11px;padding:2px 7px;border:1px solid var(--line);
@@ -181,7 +194,18 @@ input[type=number]{width:70px}
 .loadbox p{margin:4px 0 0}
 .logrow{border-top:1px solid var(--line);padding:9px 0;font-size:13px;line-height:1.5}
 .logrow:first-child{border-top:0}
-.logmeta{color:var(--muted);font-size:12px;margin-top:2px}
+.logmeta{color:var(--muted);font-size:12px;margin-top:6px}
+.rechead{font-weight:600;font-size:13.5px;margin-bottom:5px}
+.recline{font-size:13px}
+.recrow{display:flex;align-items:baseline;gap:8px;font-size:13.5px;padding:2px 0}
+.recday{min-width:78px;color:var(--muted);font-size:12px}
+.rectime{font-variant-numeric:tabular-nums}
+.rectime.old{color:var(--muted);text-decoration:line-through}
+.rectime.new{font-weight:700}
+.recarrow{color:var(--muted)}
+.recnote{color:var(--muted);font-size:12px}
+.recrow.same .rectime{color:var(--muted)}
+.recwhy{font-size:13px;font-style:italic;color:var(--fg);margin-top:5px}
 label.apply{cursor:pointer}
 input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
   border:1px solid var(--line);background:var(--bg);color:var(--fg);flex:1 1 150px;min-width:130px}
@@ -461,6 +485,45 @@ var SITES = {
     ]
   },
 
+  /* BK pump panel: two circulation pumps on Hager roller timers, and the heat
+     pump on a digital one with different weekday and weekend hours. The salt
+     chlorinator lamp sits on the heat pump row. */
+  BK: {
+    name:'BK — Pumps Panel',
+    supply:'INCOMING LIGHT',
+    selector:'AUTO  OFF  MAN',
+    startLabel:'RUN',
+    stopLabel:'STOP',
+    heatPumps:0,
+    timers:[
+      { label:'Timer 1 — Circulation Pump 1', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 1'], sch:[{on:'07:00',off:'22:00'}] },
+      { label:'Timer 2 — Circulation Pump 2', device:'hager', model:'Hager EH011',
+        controls:['Circulation Pump 2'], sch:[{on:'23:00',off:'06:00'}] },
+      { label:'Timer 3 — Heat pump', device:'digital', model:'GIC time switch',
+        note:'Different hours at the weekend — check the day on the display, not just the time.',
+        controls:['Heat Pump'], row:'simple', extra:'SALT CHLORINATOR', needsFlow:true,
+        sch:[{on:'11:00',off:'20:00',days:[1,2,3,4,5]},
+             {on:'08:00',off:'21:00',days:[0,6]}] }
+    ]
+  },
+
+  /* BK exhaust fan: a Hager roller timer in the distribution board, no panel.
+     Four periods a day — three short overnight runs, then the long daytime one. */
+  BKFAN: {
+    name:'BK — Exhaust Fan',
+    noPanel:true,
+    heatPumps:0,
+    timers:[
+      { label:'Timer — Exhaust fan', device:'hager', model:'Hager EH011',
+        controls:['Exhaust Fan'],
+        sch:[{on:'01:00',off:'02:00'},
+             {on:'03:00',off:'04:00'},
+             {on:'05:00',off:'05:30'},
+             {on:'06:00',off:'23:00'}] }
+    ]
+  },
+
   /* No control panel at DR — one Hager roller timer on the wall, nothing else. */
   DR: {
     name:'DR',
@@ -487,9 +550,9 @@ var SITES = {
   }
 };
 /* The order pools appear in the picker. Anything not listed falls in after. */
-var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR'];
+var ORDER = ['JEIP1','JEIP2','JEOP1','JEOP2','TENGAH1','TENGAH2','HS','HSBANNER','HSFAN','HSAIRMOVER','DR','BK','BKFAN'];
 
-var PENDING = ['CC','Lentor','HB','BK','WWW','TPY'];
+var PENDING = ['CC','Lentor','HB','WWW','TPY'];
 
 var S = { mode:'live', manual:480, day:new Date().getDay(), site:'JEIP1',
           timers:[], pumps:[], heat:[], heatCount:0,
@@ -501,6 +564,8 @@ function loadSite(id){
   var cfg=SITES[id];
   S.heatCount = (cfg.heatPumps!==undefined) ? cfg.heatPumps : (cfg.heatPump?1:0);
   S.selLabel  = cfg.selector  || 'MAN-OFF-AUTO';
+  S.btnStart  = cfg.startLabel || 'START';
+  S.btnStop   = cfg.stopLabel  || 'STOP';
   S.tripLabel = cfg.tripLabel || 'TRIP';
 
   var ovr=readOvr()[id];
@@ -508,7 +573,7 @@ function loadSite(id){
     var sch = (ovr && ovr[ti]) ? ovr[ti] : t.sch;
     return {label:t.label, device:(t.device||'hager'), model:(t.model||''),
             controls:(t.controls||null), controlsOff:(t.controlsOff||null), note:(t.note||''),
-            row:(t.row||''), noTimer:!!t.noTimer, startSel:(t.startSel||''),
+            row:(t.row||''), extra:(t.extra||''), noTimer:!!t.noTimer, startSel:(t.startSel||''),
             load:(t.load||''), hz:(t.hz||''),
             needsFlow:!!t.needsFlow, tsw:'auto',
             /* days come from the pool's saved settings; an edit on the phone
@@ -527,7 +592,7 @@ function loadSite(id){
     if(t.controls===null && t.panelOff) return;
     var names = t.controls || [t.label];
     names.forEach(function(nm){
-      S.pumps.push({label:nm, t:ti, row:(t.row||''), invert:false, needsFlow:t.needsFlow,
+      S.pumps.push({label:nm, t:ti, row:(t.row||''), extra:(t.extra||''), invert:false, needsFlow:t.needsFlow,
                     flow:!t.needsFlow, noTimer:!!t.noTimer,
                     sel:(t.startSel||'AUTO'), tripped:false, manRun:(t.startSel!=='OFF')});
     });
@@ -551,6 +616,20 @@ function loadSite(id){
 /* ---------- markup built from the config ---------- */
 function buildPanel(){
   var html = S.pumps.map(function(p,i){
+    if(p.row==='simple'){
+      var cols = p.extra ? 'grid4' : 'grid3';
+      return '<div class="block">'+
+        '<div class="'+cols+'"><div class="strip sel3">'+S.selLabel+'</div>'+
+        '<div class="strip">'+p.label.toUpperCase()+'</div><div class="strip">STOP</div>'+
+        (p.extra?'<div class="strip">'+p.extra+'</div>':'')+'</div>'+
+        '<div class="'+cols+'">'+
+          '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="'+i+'"><i></i></div>'+
+            '<div class="knobtag" id="k'+i+'tag">AUTO</div></div></div>'+
+          '<div class="cell"><div class="lamp" id="run'+i+'"></div></div>'+
+          '<div class="cell"><div class="lamp" id="stp'+i+'"></div></div>'+
+          (p.extra?'<div class="cell"><div class="lamp" id="xlamp'+i+'"></div></div>':'')+
+        '</div></div>';
+    }
     if(p.row==='fan'){
       return '<div class="block">'+
         '<div class="grid3"><div class="strip">RUN</div><div class="strip">STOP</div>'+
@@ -586,8 +665,8 @@ function buildPanel(){
     }
     return '<div class="block">'+
       '<div class="strip titlebar span">'+p.label.toUpperCase()+'</div>'+
-      '<div class="grid6"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">START</div>'+
-      '<div class="strip">STOP</div><div class="strip">RUN</div><div class="strip">STOP</div>'+
+      '<div class="grid6"><div class="strip sel3">'+S.selLabel+'</div><div class="strip">'+S.btnStart+'</div>'+
+      '<div class="strip">'+S.btnStop+'</div><div class="strip">RUN</div><div class="strip">STOP</div>'+
       '<div class="strip">'+S.tripLabel+'</div></div>'+
       '<div class="grid6">'+
         '<div class="cell"><div class="knobwrap"><div class="knob" data-knob="'+i+'"><i></i></div>'+
@@ -599,6 +678,7 @@ function buildPanel(){
         '<div class="cell"><div class="lamp" id="trp'+i+'" data-press="trip'+i+'" style="cursor:pointer"></div></div>'+
       '</div></div>';
   }).join('');
+
 
   for(var k=0;k<S.heatCount;k++){
     html += '<div class="block"'+(k===S.heatCount-1?' style="margin-bottom:4px"':'')+'>'+
@@ -1106,6 +1186,11 @@ function dayWord(list){
 
 var ANG={MAN:-45, OFF:0, AUTO:45, ON:45};
 
+function schList(sch){
+  return sch.map(function(w){
+    return {time:w.on+'–'+w.off, days:(w.days?dayWord(w.days):'Every day')};
+  });
+}
 function fmtSch(sch){
   return sch.length ? sch.map(function(w){
     return w.on+'–'+w.off+' ('+(w.days?dayWord(w.days):'Mon–Sun')+')';
@@ -1183,11 +1268,36 @@ function drawHistory(){
   var rows=LOG.filter(function(r){ return r.site===S.site; });
   if(!rows.length){ box.innerHTML='<p class="mini">Nothing recorded for this pool yet.</p>'; return; }
   box.innerHTML=rows.map(function(r){
-    var main = r.kind==='photo'
-      ? 'Photo taken — '+r.timer + (r.link?' · <a href="'+r.link+'" target="_blank" rel="noopener">open</a>':'')
-      : r.timer+': <b>'+r.before+'</b> → <b>'+r.after+'</b>';
-    return '<div class="logrow">'+main+
-      (r.reason?'<br><i>'+r.reason+'</i>':'')+
+    var head='<div class="rechead">'+(r.kind==='photo'?'Photo taken':r.timer)+'</div>';
+    var body='';
+    if(r.kind==='photo'){
+      body='<div class="recline">'+r.timer+
+        (r.link?' · <a href="'+r.link+'" target="_blank" rel="noopener">open photo</a>':'')+'</div>';
+    } else if(r.beforeList && r.afterList){
+      var n=Math.max(r.beforeList.length, r.afterList.length);
+      for(var j=0;j<n;j++){
+        var b=r.beforeList[j], a=r.afterList[j];
+        if(b && a && b.time===a.time && b.days===a.days){
+          body+='<div class="recrow same"><span class="recday">'+a.days+'</span>'+
+                '<span class="rectime">'+a.time+'</span><span class="recnote">unchanged</span></div>';
+        } else if(b && a){
+          body+='<div class="recrow"><span class="recday">'+a.days+'</span>'+
+                '<span class="rectime old">'+b.time+'</span>'+
+                '<span class="recarrow">→</span>'+
+                '<span class="rectime new">'+a.time+'</span></div>';
+        } else if(a){
+          body+='<div class="recrow"><span class="recday">'+a.days+'</span>'+
+                '<span class="rectime new">'+a.time+'</span><span class="recnote">added</span></div>';
+        } else {
+          body+='<div class="recrow"><span class="recday">'+b.days+'</span>'+
+                '<span class="rectime old">'+b.time+'</span><span class="recnote">removed</span></div>';
+        }
+      }
+    } else {
+      body='<div class="recline">'+r.before+' → '+r.after+'</div>';
+    }
+    return '<div class="logrow">'+head+body+
+      (r.reason?'<div class="recwhy">'+r.reason+'</div>':'')+
       '<div class="logmeta">'+(r.who||'—')+' · '+stamp(r.at)+'</div></div>';
   }).join('');
 }
@@ -1365,6 +1475,9 @@ function render(){
     if(p.row==='heater'){
       setLamp('run'+i, run?'on-white':'off-white');
       setLamp('stp'+i, run?'off-red':'on-red');
+    } else if(p.row==='simple'){
+      setLamp('run'+i, run?'on-green':'off-green');
+      setLamp('stp'+i, run?'off-red':'on-red');
     } else {
       setLamp('run'+i, run?'on-teal':'off-teal');
       setLamp('stp'+i, run?'off-red':'on-red');
@@ -1408,6 +1521,13 @@ function render(){
     document.getElementById('st'+i).innerHTML=st;
     if(t.load==='banner') drawBanner(i, closed);
     if(t.load==='vsd') drawVsd(i, closed, t.hz||'30.0');
+  });
+
+  S.pumps.forEach(function(p,i){
+    if(!p.extra) return;
+    var circ = S.pumps.some(function(q,qi){
+      return q.row!=='simple' && q.row!=='heater' && running(q, m); });
+    setLamp('xlamp'+i, circ?'on-teal':'off-teal');
   });
 
   for(var k=0;k<S.heatCount;k++){
@@ -1515,6 +1635,7 @@ document.addEventListener('click', function(e){
     WHO=who; try{ localStorage.setItem('timerWho', who); }catch(e2){}
     saveOvr();
     addRecord({kind:'change', timer:S.timers[si].label, before:BEFORE[si], after:after,
+               beforeList:schList(BEFORE['raw'+si]), afterList:schList(S.timers[si].sch),
                who:who, reason:why});
     EDIT[si]=false; drawSchedules(si); render(); return; }
 
