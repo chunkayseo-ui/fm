@@ -188,6 +188,11 @@ input[type=number]{width:70px}
 .dchip.wide{border-style:dashed;color:var(--accent);border-color:var(--accent);background:transparent}
 .photobox{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .loadbox{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.boardbox{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:13px;margin-top:14px;overflow-x:auto}
+.boardbox h2{font-size:12.5px;margin:0 0 9px;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--muted)}
+.boardbox svg{display:block;min-width:520px}
 .loadbox svg{display:block;max-width:260px}
 .signwrap{max-width:300px;border-radius:6px;overflow:hidden;line-height:0}
 .signwrap img{width:100%;display:block;transition:filter .3s}
@@ -294,6 +299,7 @@ input[type=text]{font:inherit;font-size:13px;padding:5px 7px;border-radius:6px;
       </div>
     </div>
 
+    <div id="boardWrap" style="display:none"></div>
     <div id="timerCards"></div>
 
     <div class="card">
@@ -522,6 +528,7 @@ var SITES = {
   CC24: {
     name:'CC — Pumps 2 & 4',
     noPanel:true,
+    board:true,
     heatPumps:0,
     timers:[
       { label:'Timer — Circulation Pump 2', device:'hager', model:'Hager EH011',
@@ -637,6 +644,11 @@ function loadSite(id){
   S.heatStyle = cfg.heatStyle || 'on';
   var pw=document.getElementById('panelWrap');
   if(pw) pw.style.display = cfg.noPanel ? 'none' : '';
+  var bw=document.getElementById('boardWrap');
+  if(bw){
+    if(cfg.board){ bw.innerHTML=boardSvg(); bw.style.display=''; }
+    else { bw.innerHTML=''; bw.style.display='none'; }
+  }
   S.pumps=[];
   S.timers.forEach(function(t,ti){
     if(t.controls===null && t.panelOff) return;
@@ -1140,6 +1152,50 @@ function sendPhoto(i, file){
   });
 }
 
+function boardSvg(){
+  var g='<div class="boardbox"><h2>Distribution board</h2>'+
+  '<svg viewBox="0 0 560 150" width="100%" aria-label="Distribution board">'+
+  '<rect x="4" y="4" width="552" height="142" rx="6" fill="#f2f3f0" stroke="#c4c7c2"/>'+
+  '<rect x="16" y="46" width="528" height="58" fill="#e7e9e5" stroke="#c9ccc7"/>'+
+  '<rect x="16" y="70" width="528" height="8" fill="#cfd2ce"/>';   /* the rail */
+  var x=22;
+  function mod(w,fill,label,sub){
+    var o='<rect x="'+x+'" y="48" width="'+w+'" height="54" rx="2" fill="'+fill+
+      '" stroke="#a9aca8"/>'+
+      '<text x="'+(x+w/2)+'" y="40" text-anchor="middle" font-family="Arial" font-size="9" '+
+      'fill="#3b3e3b">'+label+'</text>'+
+      (sub?'<text x="'+(x+w/2)+'" y="116" text-anchor="middle" font-family="Arial" font-size="8" '+
+        'fill="#7c817c">'+sub+'</text>':'');
+    x+=w+4; return o;
+  }
+  g+=mod(56,'#fbfbf9','RCBO','P2');
+  g+=mod(56,'#fbfbf9','RCBO','P4');
+  g+=mod(34,'#f4f5f2','fuse','');
+  g+='<g id="ctc0">'+mod(40,'#eef1ee','contactor','P2')+'</g>';
+  g+='<g id="tmr0">'+mod(52,'#eaf0f8','timer','P2')+'</g>';
+  g+=mod(34,'#f4f5f2','fuse','');
+  g+='<g id="ctc1">'+mod(40,'#eef1ee','contactor','P4')+'</g>';
+  g+='<g id="tmr1">'+mod(52,'#eaf0f8','timer','P4')+'</g>';
+  g+='<circle id="led0" cx="196" cy="60" r="4" fill="#9aa09a"/>'+
+     '<circle id="led1" cx="382" cy="60" r="4" fill="#9aa09a"/>';
+  g+='</svg><p class="mini" id="boardCap"></p></div>';
+  return g;
+}
+
+function drawBoard(){
+  var names=[];
+  S.timers.forEach(function(t,i){
+    var lit = contact(t, nowMin(), S.day);
+    var c=document.getElementById('led'+i);
+    if(c) c.setAttribute('fill', lit?'#2fa36b':'#9aa09a');
+    if(lit) names.push((t.controls&&t.controls[0])||t.label);
+  });
+  var cap=document.getElementById('boardCap');
+  if(cap) cap.textContent = names.length
+    ? 'Contactor closed now: '+names.join(', ')
+    : 'Both contactors open — nothing running from this board now';
+}
+
 function buildCards(){
   document.getElementById('timerCards').innerHTML = S.timers.map(function(t,i){
     if(t.noTimer){
@@ -1624,6 +1680,8 @@ function render(){
       return q.row!=='simple' && q.row!=='heater' && running(q, m); });
     setLamp('xlamp'+i, circ?'on-teal':'off-teal');
   });
+
+  if(SITES[S.site].board) drawBoard();
 
   for(var k=0;k<S.heatCount;k++){
     var hpOn = (S.heat[k]==='ON' && r.flow);
