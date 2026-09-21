@@ -120,6 +120,25 @@
   .guard b{font-weight:600;}
   .guard .f-actions{margin-top:8px;}
   .err{color:var(--red); font-size:12.5px; margin-top:6px;}
+
+  /* other locations (office, warehouse ...) sit under their own heading */
+  .group-label{font-size:11.5px; font-weight:600; color:var(--ink-soft); text-transform:uppercase;
+    letter-spacing:.06em; margin:20px 2px 10px;}
+  .addloc{background:transparent; border:1.5px dashed var(--border); border-radius:16px; padding:14px 16px; margin-top:6px;}
+  .addloc-open{display:flex; align-items:center; justify-content:center; gap:6px; width:100%; background:none; border:0;
+    font:600 14px/1 'Inter',sans-serif; color:var(--teal-deep); cursor:pointer; padding:4px;}
+  .addloc h3{font-family:'Space Grotesk',sans-serif; font-size:15px; margin:0 0 2px;}
+  .addloc p{font-size:12px; color:var(--ink-soft); margin:0 0 4px;}
+  .confirm{margin-top:10px; padding:11px 12px; border-radius:10px; background:var(--red-soft); color:#7E2419;
+    font-size:13px; line-height:1.45; border:1px solid #E7B0A9;}
+  .confirm .f-actions{margin-top:8px;}
+
+  /* free-form details on a line: static IP, account holder name, anything */
+  .x-title{font-size:11.5px; font-weight:600; color:var(--ink-soft); margin:14px 0 2px;}
+  .x-row{display:grid; grid-template-columns:1fr 1.4fr auto; gap:6px; align-items:center; margin-top:6px;}
+  .x-row input.f{padding:9px 10px; font-size:14px;}
+  .x-rm{border:0; background:none; color:var(--red); font-size:18px; line-height:1; padding:6px 4px; cursor:pointer;}
+  .x-add{margin-top:8px;}
 </style>
 </head>
 <body>
@@ -129,7 +148,7 @@
     <div class="eyebrow">Plant Room</div>
     <h1>Outlet Internet</h1>
   </div>
-  <p class="lede">Who to call, what's installed and where it sits, for every outlet.
+  <p class="lede">Who to call, what's installed and where it sits, for every outlet and any other location you add.
     <b>Passwords are not kept here</b> — this page is public. They're in Bitwarden, under the entry named on each line.</p>
 
   <div class="sync-row"><span class="sync-dot loading" id="syncDot"></span><span id="syncText">Loading…</span></div>
@@ -154,7 +173,21 @@
 
 const OUTLETS = ['CC','DR','LENTOR','TENGAH','JE','HB','HS','BK','WWW','TPY'];
 const OUTLET_NAMES = { LENTOR:'Lentor', TENGAH:'Tengah' };
-const nameOf = c => OUTLET_NAMES[c] || c;
+/* Anything that isn't one of the ten outlets -- office, warehouse -- is a
+   "custom" location: its own document, flagged custom:true, with a name the
+   user chose. It gets an id of LOC-<NAME> so it can never collide with an
+   outlet code. */
+const nameOf = c => OUTLET_NAMES[c] || (DATA[c] && DATA[c].name) || c;
+function customCodes(){
+  return Object.keys(DATA).filter(c => !OUTLETS.includes(c) && DATA[c] && DATA[c].custom)
+    .sort((a,b) => nameOf(a).localeCompare(nameOf(b)));
+}
+function allCodes(){ return OUTLETS.concat(customCodes()); }
+function slugId(name){ return 'LOC-' + String(name).toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40); }
+function nameTaken(name, except){
+  const n = String(name).trim().toLowerCase();
+  return allCodes().some(c => c !== except && nameOf(c).toLowerCase() === n);
+}
 
 const PROVIDERS = ['Singtel','StarHub','M1','MyRepublic','ViewQwest','WhizComms','SIMBA'];
 
@@ -184,6 +217,8 @@ let LOG  = [];          // newest first
 let OPEN = {};          // which outlets are expanded
 let EDIT = null;        // { outlet, lines:[...] } while a form is open
 let GUARD = null;       // pending save held back by the password check
+let ADDLOC = false;     // the "add a location" box is open
+let CONFIRM = null;     // location code waiting on "remove?" confirmation
 let CLOUD = null, CLOUD_OK = false, CLOUD_ERR = '';
 
 /* ---------- small helpers ---------- */
@@ -200,7 +235,7 @@ function newId(){ return Math.random().toString(36).slice(2, 9); }
 function blankLine(outlet, n){
   return { id:newId(), label: n ? 'Line ' + (n + 1) : 'Main', provider:'', plan:'', hotline:'',
            contractEnd:'', modem:'', router:'', routerIp:'', wifi:'', location:'',
-           vault: nameOf(outlet) + ' Router', notes:'' };
+           vault: nameOf(outlet) + ' Router', notes:'', extra:[] };
 }
 function daysUntil(ymd){
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd||'')) return null;
@@ -241,6 +276,11 @@ function passwordHits(lines){
       const cleaned = v.replace(/password[s]?\s+(is|are)?\s*in\s+bitwarden/ig, '');
       if (PW_RX.test(cleaned)) hits.push((l.label || 'Line') + ' → ' + label);
     });
+    (l.extra || []).forEach(x => {
+      const txt = (x.k || '') + ' ' + (x.v || '');
+      const cleaned = txt.replace(/password[s]?\s+(is|are)?\s*in\s+bitwarden/ig, '');
+      if (PW_RX.test(cleaned)) hits.push((l.label || 'Line') + ' → ' + (x.k || 'other detail'));
+    });
   });
   return hits;
 }
@@ -267,13 +307,17 @@ function setSync(kind, text){
 function render(){
   renderAlerts();
   const list = document.getElementById('list');
-  list.innerHTML = OUTLETS.map(renderOutlet).join('');
+  const custom = customCodes();
+  list.innerHTML =
+    OUTLETS.map(renderOutlet).join('') +
+    (custom.length ? '<div class="group-label">Other locations</div>' + custom.map(renderOutlet).join('') : '') +
+    renderAddLoc();
   wire();
 }
 
 function renderAlerts(){
   const rows = [];
-  OUTLETS.forEach(code => {
+  allCodes().forEach(code => {
     ((DATA[code] && DATA[code].lines) || []).forEach(l => {
       const c = contractState(l);
       if (c && c.k) rows.push({ code, l, c });
@@ -342,6 +386,7 @@ function renderView(code, rec){
       row('Router address', l.routerIp, 'mono') +
       row('Wi-Fi name', l.wifi) +
       row('Equipment at', l.location) +
+      (l.extra || []).map(x => row(esc(x.k || 'Detail'), x.v)).join('') +
       (l.notes ? row('Notes', l.notes) : '') +
     '</dl>';
     h += '<div class="vault">🔒 <span>Wi-Fi and router logins: Bitwarden → <b>' +
@@ -351,7 +396,15 @@ function renderView(code, rec){
 
   h += '<div class="o-foot"><span class="stamp">' +
        (rec.updatedAt ? 'Updated ' + esc(fmtWhen(rec.updatedAt)) + (rec.updatedBy ? ' by ' + esc(rec.updatedBy) : '') : '') +
-       '</span><button class="btn" data-edit="' + code + '">' + (lines.length ? 'Edit' : 'Add details') + '</button></div>';
+       '</span><span style="display:flex;gap:6px">' +
+       (rec.custom ? '<button class="btn ghost danger" data-rmloc="' + code + '">Remove location</button>' : '') +
+       '<button class="btn" data-edit="' + code + '">' + (lines.length ? 'Edit' : 'Add details') + '</button></span></div>';
+  if (CONFIRM === code){
+    h += '<div class="confirm">Remove <b>' + esc(nameOf(code)) + '</b> from this page' +
+         (lines.length ? ', along with its ' + lines.length + ' line' + (lines.length === 1 ? '' : 's') : '') + '?' +
+         '<div class="f-actions"><button class="btn" data-rmno="1">Keep it</button>' +
+         '<button class="btn danger" data-rmyes="' + code + '">Remove</button></div></div>';
+  }
 
   const mine = LOG.filter(r => r.outlet === code).slice(0, 8);
   if (mine.length){
@@ -366,6 +419,11 @@ function renderForm(code){
   let h = '<div class="form">';
   h += '<div class="f-who"><label class="f" for="f-who">Your name <em>(goes in the change record)</em></label>' +
        '<input class="f" id="f-who" value="' + esc(EDIT.who || '') + '" autocomplete="name"></div>';
+
+  if (EDIT.custom){
+    h += '<label class="f" for="f-name">Location name</label>' +
+         '<input class="f" id="f-name" value="' + esc(EDIT.name || '') + '" autocomplete="off" style="margin-bottom:12px">';
+  }
 
   EDIT.lines.forEach((l, i) => {
     h += '<div class="f-line" data-line="' + i + '"><div class="f-line-head"><span>' + esc(l.label || ('Line ' + (i+1))) + '</span>' +
@@ -382,6 +440,14 @@ function renderForm(code){
              ' autocomplete="off" autocapitalize="' + (k === 'routerIp' ? 'none' : 'sentences') + '">';
       }
     });
+    h += '<div class="x-title">Other details <em style="font-weight:400">· anything else worth keeping, e.g. static IP, account holder</em></div>';
+    (l.extra || []).forEach((x, j) => {
+      h += '<div class="x-row">' +
+           '<input class="f" placeholder="What" data-i="' + i + '" data-x="' + j + '" data-xk="k" value="' + esc(x.k) + '" autocomplete="off">' +
+           '<input class="f" placeholder="Value" data-i="' + i + '" data-x="' + j + '" data-xk="v" value="' + esc(x.v) + '" autocomplete="off">' +
+           '<button class="x-rm" title="Remove" data-xrm="' + i + ':' + j + '">×</button></div>';
+    });
+    h += '<button class="btn ghost x-add" data-xadd="' + i + '">+ Add a detail</button>';
     h += '</div>';
   });
   h += '<datalist id="providers">' + PROVIDERS.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>';
@@ -402,6 +468,69 @@ function renderForm(code){
   h += '<div class="err" id="f-err"></div>';
   h += '</div>';
   return h;
+}
+
+function renderAddLoc(){
+  if (!ADDLOC) return '<div class="addloc"><button class="addloc-open" data-addloc="1">+ Add a location <span style="font-weight:500;color:var(--ink-soft)">— office, warehouse…</span></button></div>';
+  return '<div class="addloc"><h3>Add a location</h3><p>For anywhere that isn\u2019t one of the ten outlets.</p>' +
+    '<label class="f" for="nl-name">Location name</label>' +
+    '<input class="f" id="nl-name" placeholder="e.g. Office, Warehouse" autocomplete="off">' +
+    '<label class="f" for="nl-who">Your name <em>(goes in the change record)</em></label>' +
+    '<input class="f" id="nl-who" value="' + esc(getWho()) + '" autocomplete="name">' +
+    '<div class="err" id="nl-err"></div>' +
+    '<div class="f-actions" style="margin-top:10px"><span style="flex:1"></span>' +
+    '<button class="btn ghost" data-addloccancel="1">Cancel</button>' +
+    '<button class="btn primary" data-addlocsave="1">Add</button></div></div>';
+}
+
+function addLocation(){
+  const name = (document.getElementById('nl-name').value || '').trim().replace(/\s+/g,' ');
+  const who  = (document.getElementById('nl-who').value || '').trim();
+  const err  = document.getElementById('nl-err');
+  if (!name){ err.textContent = 'Give the location a name.'; return; }
+  if (name.length > 40){ err.textContent = 'Keep the name under 40 characters.'; return; }
+  if (!who){ err.textContent = 'Put your name in first, so the change record says who.'; return; }
+  if (nameTaken(name)){ err.textContent = '\u201c' + name + '\u201d is already on the list.'; return; }
+  let id = slugId(name);
+  if (!id || id === 'LOC-') id = 'LOC-' + newId().toUpperCase();
+  while (DATA[id] || OUTLETS.includes(id)) id = id + '-' + newId().slice(0,3).toUpperCase();
+
+  const rec = { outlet:id, name, custom:true, lines:[], updatedAt:new Date().toISOString(), updatedBy:who };
+  setWho(who);
+  DATA[id] = rec;
+  const entry = { outlet:id, who, at:rec.updatedAt, summary:'added location ' + name };
+  LOG.unshift(entry);
+  saveLocal();
+  ADDLOC = false;
+  pushCloud(id, rec, entry);
+  startEdit(id);                      // straight into filling it in
+}
+
+function removeLocation(code){
+  const rec = DATA[code];
+  if (!rec || !rec.custom) return;
+  const who = getWho() || 'someone';
+  const entry = { outlet:code, who, at:new Date().toISOString(), summary:'removed location ' + (rec.name || code) };
+  delete DATA[code];
+  LOG.unshift(entry);
+  CONFIRM = null; delete OPEN[code];
+  saveLocal(); render();
+  if (CLOUD){
+    setSync('loading', 'Saving…');
+    CLOUD.collection('outlet_internet').doc(code).delete()
+      .then(() => CLOUD.collection('outlet_internet_changes').add(entry))
+      .then(() => setSync('ok', 'Saved · shared with everyone'))
+      .catch(() => setSync('warn', 'Removed on this phone only — could not reach the server'));
+  }
+}
+
+function pushCloud(code, rec, entry){
+  if (!CLOUD){ setSync('warn', 'Saved on this phone only — ' + (CLOUD_ERR || 'the server is not connected')); return; }
+  setSync('loading', 'Saving…');
+  CLOUD.collection('outlet_internet').doc(code).set(rec)
+    .then(() => CLOUD.collection('outlet_internet_changes').add(entry))
+    .then(() => setSync('ok', 'Saved · shared with everyone'))
+    .catch(() => setSync('warn', 'Saved on this phone only — could not reach the server'));
 }
 
 /* ---------- events ---------- */
@@ -430,6 +559,31 @@ function wire(){
     EDIT.lines.splice(+el.getAttribute('data-rmline'), 1); GUARD = null; render();
   });
   document.querySelectorAll('[data-cancel]').forEach(el => el.onclick = () => { EDIT = null; GUARD = null; render(); });
+  document.querySelectorAll('input.f[data-xk]').forEach(el => el.oninput = () => {
+    EDIT.lines[+el.dataset.i].extra[+el.dataset.x][el.dataset.xk] = el.value;
+  });
+  document.querySelectorAll('[data-xadd]').forEach(el => el.onclick = () => {
+    const l = EDIT.lines[+el.getAttribute('data-xadd')];
+    (l.extra = l.extra || []).push({ k:'', v:'' }); render();
+    const rows = document.querySelectorAll('.f-line[data-line="' + el.getAttribute('data-xadd') + '"] .x-row input[data-xk="k"]');
+    if (rows.length) rows[rows.length - 1].focus();
+  });
+  document.querySelectorAll('[data-xrm]').forEach(el => el.onclick = () => {
+    const [i, j] = el.getAttribute('data-xrm').split(':').map(Number);
+    EDIT.lines[i].extra.splice(j, 1); GUARD = null; render();
+  });
+  const nm = document.getElementById('f-name');
+  if (nm) nm.oninput = () => { EDIT.name = nm.value; };
+  document.querySelectorAll('[data-addloc]').forEach(el => el.onclick = () => {
+    ADDLOC = true; render(); const f = document.getElementById('nl-name'); if (f) f.focus();
+  });
+  document.querySelectorAll('[data-addloccancel]').forEach(el => el.onclick = () => { ADDLOC = false; render(); });
+  document.querySelectorAll('[data-addlocsave]').forEach(el => el.onclick = addLocation);
+  const nlName = document.getElementById('nl-name');
+  if (nlName) nlName.onkeydown = e => { if (e.key === 'Enter') addLocation(); };
+  document.querySelectorAll('[data-rmloc]').forEach(el => el.onclick = () => { CONFIRM = el.getAttribute('data-rmloc'); render(); });
+  document.querySelectorAll('[data-rmno]').forEach(el => el.onclick = () => { CONFIRM = null; render(); });
+  document.querySelectorAll('[data-rmyes]').forEach(el => el.onclick = () => removeLocation(el.getAttribute('data-rmyes')));
   document.querySelectorAll('[data-save]').forEach(el => el.onclick = () => trySave(false));
   document.querySelectorAll('[data-guardsave]').forEach(el => el.onclick = () => trySave(true));
   document.querySelectorAll('[data-guardback]').forEach(el => el.onclick = () => { GUARD = null; render(); });
@@ -439,7 +593,10 @@ function startEdit(code){
   const rec = DATA[code] || { lines:[] };
   const lines = (rec.lines && rec.lines.length ? rec.lines : [blankLine(code, 0)])
     .map(l => Object.assign(blankLine(code, 0), l));
-  EDIT = { outlet: code, lines: JSON.parse(JSON.stringify(lines)), who: getWho() };
+  EDIT = { outlet: code, lines: JSON.parse(JSON.stringify(lines)), who: getWho(),
+           custom: !!rec.custom, name: rec.name || '' };
+  EDIT.lines.forEach(l => { if (!Array.isArray(l.extra)) l.extra = []; });
+  CONFIRM = null;
   GUARD = null;
   OPEN[code] = true;
   render();
@@ -454,6 +611,7 @@ function summarise(before, after){
     const old = byId[l.id];
     if (!old){ parts.push('added ' + (l.label || 'line') + (l.provider ? ' (' + l.provider + ')' : '')); return; }
     const changed = FIELDS.filter(([k]) => String(old[k]||'') !== String(l[k]||'')).map(([,label]) => label.toLowerCase());
+    if (JSON.stringify(old.extra || []) !== JSON.stringify(l.extra || [])) changed.push('other details');
     if (changed.length) parts.push((after.length > 1 ? (l.label || 'line') + ': ' : '') + 'changed ' + changed.join(', '));
     delete byId[l.id];
   });
@@ -466,9 +624,18 @@ function trySave(force){
   const who = (EDIT.who || '').trim();
   if (!who){ if (err) err.textContent = 'Put your name in first, so the change record says who.'; document.getElementById('f-who').focus(); return; }
 
+  let newName = null;
+  if (EDIT.custom){
+    newName = String(EDIT.name || '').trim().replace(/\s+/g,' ');
+    if (!newName){ if (err) err.textContent = 'The location needs a name.'; return; }
+    if (nameTaken(newName, EDIT.outlet)){ if (err) err.textContent = '\u201c' + newName + '\u201d is already on the list.'; return; }
+  }
+
   const lines = EDIT.lines.map(l => {
-    const o = {}; FIELDS.forEach(([k]) => o[k] = String(l[k] || '').trim()); o.id = l.id || newId(); return o;
-  }).filter(l => FIELDS.some(([k]) => k !== 'label' && k !== 'vault' && l[k]));   // drop untouched blanks
+    const o = {}; FIELDS.forEach(([k]) => o[k] = String(l[k] || '').trim()); o.id = l.id || newId();
+    o.extra = (l.extra || []).map(x => ({ k:String(x.k||'').trim(), v:String(x.v||'').trim() })).filter(x => x.k || x.v);
+    return o;
+  }).filter(l => l.extra.length || FIELDS.some(([k]) => k !== 'label' && k !== 'vault' && l[k]));   // drop untouched blanks
 
   if (!force){
     const hits = passwordHits(lines);
@@ -477,8 +644,15 @@ function trySave(force){
 
   const code   = EDIT.outlet;
   const before = (DATA[code] && DATA[code].lines) || [];
-  const summary = summarise(before, lines);
+  let summary = summarise(before, lines);
   const rec = { outlet: code, lines, updatedAt: new Date().toISOString(), updatedBy: who };
+  if (EDIT.custom){
+    const oldName = (DATA[code] && DATA[code].name) || '';
+    rec.custom = true; rec.name = newName;
+    if (oldName && oldName !== newName){
+      summary = 'renamed ' + oldName + ' → ' + newName + (summary === 'no changes' ? '' : '; ' + summary);
+    }
+  }
 
   setWho(who);
   DATA[code] = rec;
@@ -488,15 +662,7 @@ function trySave(force){
   EDIT = null; GUARD = null;
   render();
 
-  if (CLOUD){
-    setSync('loading', 'Saving…');
-    CLOUD.collection('outlet_internet').doc(code).set(rec)
-      .then(() => CLOUD.collection('outlet_internet_changes').add(entry))
-      .then(() => setSync('ok', 'Saved · shared with everyone'))
-      .catch(() => setSync('warn', 'Saved on this phone only — could not reach the server'));
-  } else {
-    setSync('warn', 'Saved on this phone only — ' + (CLOUD_ERR || 'the server is not connected'));
-  }
+  pushCloud(code, rec, entry);
 }
 
 /* ---------- cloud ---------- */
@@ -519,7 +685,7 @@ function cloudStart(){
   CLOUD.collection('outlet_internet').onSnapshot(snap => {
     CLOUD_OK = true;
     const next = {};
-    snap.forEach(d => { const r = d.data(); if (r && OUTLETS.includes(d.id)) next[d.id] = r; });
+    snap.forEach(d => { const r = d.data(); if (r && (OUTLETS.includes(d.id) || r.custom)) next[d.id] = r; });
     DATA = next;
     saveLocal();
     if (!EDIT) render(); else renderAlerts();   // never wipe a form someone is typing into
