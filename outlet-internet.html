@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Outlet Internet</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #F1F7F7);
+    --surface: var(--tg-theme-secondary-bg-color, #FFFFFF);
+    --ink: var(--tg-theme-text-color, #0C2B30);
+    --ink-soft: #4C6B70;
+    --teal: #0E7C86;
+    --teal-deep: #0A5259;
+    --teal-soft: #E3F3F3;
+    --amber: #B36B12;
+    --amber-soft: #FBEEDC;
+    --red: #B23A2E;
+    --red-soft: #F8DEDA;
+    --border: #D9EAEA;
+    --ok: #2FA36B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif;
+    min-height:100vh; padding:16px 16px 48px;}
+  .wrap{max-width:520px; margin:0 auto;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  .top{margin-bottom:6px; padding:0 2px;}
+  .eyebrow{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--teal); font-weight:600;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700; margin:2px 0 0; letter-spacing:-.01em;}
+  .lede{font-size:12.5px; color:var(--ink-soft); line-height:1.5; margin:6px 2px 10px;}
+  .lede b{color:var(--ink); font-weight:600;}
+
+  .sync-row{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-soft); margin:0 2px 14px;}
+  .sync-dot{width:7px; height:7px; border-radius:50%; background:var(--ink-soft); flex:none;}
+  .sync-dot.ok{background:var(--ok);}
+  .sync-dot.warn{background:var(--red);}
+  .sync-dot.loading{background:#E2933B; animation:pulse 1s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+  /* contracts running out -- the one thing on this page with a deadline */
+  .alerts{margin-bottom:14px;}
+  .alert{display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:12px;
+    font-size:13px; line-height:1.45; margin-bottom:8px; border:1px solid;}
+  .alert.amber{background:var(--amber-soft); border-color:#EBCB9C; color:#6E4308;}
+  .alert.red{background:var(--red-soft); border-color:#E7B0A9; color:#7E2419;}
+  .alert b{font-weight:600;}
+
+  .outlet{background:var(--surface); border:1px solid var(--border); border-radius:16px; margin-bottom:10px; overflow:hidden;}
+  .o-head{display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; user-select:none;}
+  .o-code{font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; min-width:64px;}
+  .o-sum{flex:1; min-width:0; font-size:12.5px; color:var(--ink-soft); line-height:1.4;}
+  .o-sum .chips{display:flex; flex-wrap:wrap; gap:5px;}
+  .chip{display:inline-block; font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:999px;
+    background:var(--teal-soft); color:var(--teal-deep);}
+  .chip.amber{background:var(--amber-soft); color:var(--amber);}
+  .chip.red{background:var(--red-soft); color:var(--red);}
+  .chip.empty{background:transparent; color:var(--ink-soft); border:1px dashed var(--border); font-weight:500;}
+  .o-chev{color:var(--ink-soft); font-size:12px; transition:transform .15s; flex:none;}
+  .outlet.open .o-chev{transform:rotate(90deg);}
+  .o-body{display:none; border-top:1px solid var(--border); padding:4px 16px 16px;}
+  .outlet.open .o-body{display:block;}
+
+  .line{padding:12px 0 4px; border-bottom:1px dashed var(--border);}
+  .line:last-of-type{border-bottom:0;}
+  .line-title{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;}
+  .line-name{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;}
+  .line-name small{font-family:'Inter',sans-serif; font-weight:500; font-size:12px; color:var(--ink-soft); margin-left:6px;}
+
+  .call{display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    padding:13px; border-radius:12px; background:var(--teal); color:#fff; text-decoration:none;
+    font-weight:600; font-size:15px; margin-bottom:12px;}
+  .call.alt{background:var(--surface); color:var(--teal-deep); border:1.5px solid var(--border); margin-top:-4px;}
+  .call .num{font-family:'IBM Plex Mono',monospace; font-weight:600; opacity:.9; font-size:14px;}
+
+  .kv{display:grid; grid-template-columns:120px 1fr; gap:7px 12px; font-size:13.5px; margin-bottom:8px;}
+  .kv dt{color:var(--ink-soft); font-size:12px; padding-top:1px;}
+  .kv dd{margin:0; overflow-wrap:anywhere;}
+  .kv dd.none{color:#9AB0B3;}
+  .vault{display:flex; align-items:center; gap:7px; padding:9px 11px; border-radius:10px; background:var(--bg);
+    font-size:12.5px; color:var(--ink-soft); margin:4px 0 8px;}
+  .vault b{color:var(--ink); font-weight:600;}
+
+  .o-foot{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; flex-wrap:wrap;}
+  .stamp{font-size:11.5px; color:var(--ink-soft);}
+  .btn{font:600 13.5px/1 'Inter',sans-serif; padding:10px 14px; border-radius:10px; border:1.5px solid var(--border);
+    background:var(--surface); color:var(--teal-deep); cursor:pointer;}
+  .btn.primary{background:var(--teal); border-color:var(--teal); color:#fff;}
+  .btn.danger{color:var(--red); border-color:#E7B0A9;}
+  .btn.ghost{border-color:transparent; background:transparent; padding-left:4px; padding-right:4px;}
+  .btn:disabled{opacity:.5; cursor:default;}
+
+  .hist{margin-top:10px; font-size:12px; color:var(--ink-soft);}
+  .hist summary{cursor:pointer; font-weight:600; color:var(--teal-deep); list-style:none;}
+  .hist summary::-webkit-details-marker{display:none;}
+  .hist ul{margin:8px 0 0; padding:0 0 0 16px;}
+  .hist li{margin-bottom:5px; line-height:1.4;}
+
+  /* ---------- edit form ---------- */
+  .form{padding-top:10px;}
+  .f-line{background:var(--bg); border-radius:12px; padding:12px; margin-bottom:12px;}
+  .f-line-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .f-line-head span{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;}
+  label.f{display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin:9px 0 4px;}
+  label.f em{font-style:normal; font-weight:400;}
+  input.f, textarea.f{width:100%; font:15px/1.35 'Inter',sans-serif; color:var(--ink); background:var(--surface);
+    border:1.5px solid var(--border); border-radius:10px; padding:10px 11px;}
+  textarea.f{min-height:64px; resize:vertical;}
+  input.f:focus, textarea.f:focus{outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal);}
+  .f-row{display:grid; grid-template-columns:1fr 1fr; gap:0 10px;}
+  .f-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:4px;}
+  .f-who{margin-bottom:10px;}
+  .guard{margin:10px 0 4px; padding:11px 12px; border-radius:10px; background:var(--red-soft); color:#7E2419;
+    font-size:13px; line-height:1.45; border:1px solid #E7B0A9;}
+  .guard b{font-weight:600;}
+  .guard .f-actions{margin-top:8px;}
+  .err{color:var(--red); font-size:12.5px; margin-top:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="eyebrow">Plant Room</div>
+    <h1>Outlet Internet</h1>
+  </div>
+  <p class="lede">Who to call, what's installed and where it sits, for every outlet.
+    <b>Passwords are not kept here</b> — this page is public. They're in Bitwarden, under the entry named on each line.</p>
+
+  <div class="sync-row"><span class="sync-dot loading" id="syncDot"></span><span id="syncText">Loading…</span></div>
+
+  <div class="alerts" id="alerts"></div>
+  <div id="list"></div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   One document per outlet in `outlet_internet`, each holding a list of
+   internet lines (most outlets have one; some keep CCTV on its own line).
+   Every save also writes a one-line summary to `outlet_internet_changes`
+   so a wrong edit can be seen and put back.
+
+   Nothing secret belongs here: the page and its repo are public. The
+   "Password app entry" field only names where the secret lives.
+------------------------------------------------------------------ */
+
+const OUTLETS = ['CC','DR','LENTOR','TENGAH','JE','HB','HS','BK','WWW','TPY'];
+const OUTLET_NAMES = { LENTOR:'Lentor', TENGAH:'Tengah' };
+const nameOf = c => OUTLET_NAMES[c] || c;
+
+const PROVIDERS = ['Singtel','StarHub','M1','MyRepublic','ViewQwest','WhizComms','SIMBA'];
+
+const FIELDS = [
+  // key, label, hint, type
+  ['label',       'Line name',               'e.g. Main, CCTV line',                  'text'],
+  ['provider',    'Service provider',        '',                                      'provider'],
+  ['plan',        'Plan / speed',            'e.g. 1 Gbps fibre',                     'text'],
+  ['hotline',     'Support hotline',         'The number you actually call',          'tel'],
+  ['contractEnd', 'Contract ends',           '',                                      'date'],
+  ['modem',       'Modem / ONT model',       '',                                      'text'],
+  ['router',      'Router model',            '',                                      'text'],
+  ['routerIp',    'Router address',          'e.g. 192.168.1.1',                      'text'],
+  ['wifi',        'Wi-Fi name',              'The network name, not the password',    'text'],
+  ['location',    'Where the equipment is',  'e.g. plant room, shelf above the DB',   'text'],
+  ['vault',       'Password app entry',      'The name of the entry in Bitwarden',    'text'],
+  ['notes',       'Notes',                   'No passwords',                          'textarea'],
+];
+
+const SOON_DAYS = 90;   // contracts usually need notice; flag early
+
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg){ tg.ready(); tg.expand(); }
+
+let DATA = {};          // { CC: {lines:[...], updatedAt, updatedBy} }
+let LOG  = [];          // newest first
+let OPEN = {};          // which outlets are expanded
+let EDIT = null;        // { outlet, lines:[...] } while a form is open
+let GUARD = null;       // pending save held back by the password check
+let CLOUD = null, CLOUD_OK = false, CLOUD_ERR = '';
+
+/* ---------- small helpers ---------- */
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* A hotline field often holds two numbers ("1688 / +65 6838 3388"), so pull
+   each one out and give it its own button rather than gluing them together. */
+function phoneNumbers(s){
+  return (String(s||'').match(/\+?\d[\d\s-]{2,}\d/g) || [])
+    .map(n => n.trim()).filter(n => n.replace(/\D/g,'').length >= 3).slice(0, 3);
+}
+function telHref(n){ const d = String(n||'').replace(/[^\d+]/g,''); return d ? 'tel:' + d : ''; }
+function newId(){ return Math.random().toString(36).slice(2, 9); }
+function blankLine(outlet, n){
+  return { id:newId(), label: n ? 'Line ' + (n + 1) : 'Main', provider:'', plan:'', hotline:'',
+           contractEnd:'', modem:'', router:'', routerIp:'', wifi:'', location:'',
+           vault: nameOf(outlet) + ' Router', notes:'' };
+}
+function daysUntil(ymd){
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd||'')) return null;
+  const [y,m,d] = ymd.split('-').map(Number);
+  const end = new Date(y, m-1, d); const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((end - now) / 86400000);
+}
+function fmtDate(ymd){
+  if (!ymd) return '';
+  const [y,m,d] = ymd.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+function fmtWhen(iso){
+  if (!iso) return '';
+  const t = new Date(iso);
+  return t.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) + ', ' +
+         t.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+}
+function contractState(line){
+  const n = daysUntil(line.contractEnd);
+  if (n == null) return null;
+  if (n < 0)          return { k:'red',   n, text: 'contract ended ' + (-n) + ' day' + (n === -1 ? '' : 's') + ' ago' };
+  if (n <= SOON_DAYS) return { k:'amber', n, text: 'contract ends in ' + n + ' day' + (n === 1 ? '' : 's') };
+  return { k:'', n, text: 'contract to ' + fmtDate(line.contractEnd) };
+}
+
+/* A password must never be saved here. This is a tripwire, not a
+   guarantee -- it catches the honest slip of pasting one into Notes. */
+const PW_RX = /(pass\s*word|passwd|\bpwd\b|\bpw\s*[:=]|\bpin\s*[:=]|password\s*[:=]|密码|kata\s*laluan|admin\s*\/\s*\S+)/i;
+function passwordHits(lines){
+  const hits = [];
+  lines.forEach(l => {
+    FIELDS.forEach(([k, label]) => {
+      if (k === 'vault') return;                 // naming the entry is fine
+      const v = String(l[k] || '');
+      if (!v) return;
+      // "password is in Bitwarden" is the one sentence we want people to write
+      const cleaned = v.replace(/password[s]?\s+(is|are)?\s*in\s+bitwarden/ig, '');
+      if (PW_RX.test(cleaned)) hits.push((l.label || 'Line') + ' → ' + label);
+    });
+  });
+  return hits;
+}
+
+/* ---------- local copy, so the page opens even when the outlet's line is down ---------- */
+const LS_KEY = 'oi.cache.v1', LS_WHO = 'oi.who';
+function saveLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify({ data:DATA, log:LOG.slice(0,60), at:Date.now() })); } catch(e){} }
+function loadLocal(){
+  try {
+    const box = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (box && box.data){ DATA = box.data; LOG = box.log || []; return box.at || 0; }
+  } catch(e){}
+  return 0;
+}
+function getWho(){ try { return localStorage.getItem(LS_WHO) || ''; } catch(e){ return ''; } }
+function setWho(v){ try { localStorage.setItem(LS_WHO, v); } catch(e){} }
+
+function setSync(kind, text){
+  document.getElementById('syncDot').className = 'sync-dot ' + kind;
+  document.getElementById('syncText').textContent = text;
+}
+
+/* ---------- render ---------- */
+function render(){
+  renderAlerts();
+  const list = document.getElementById('list');
+  list.innerHTML = OUTLETS.map(renderOutlet).join('');
+  wire();
+}
+
+function renderAlerts(){
+  const rows = [];
+  OUTLETS.forEach(code => {
+    ((DATA[code] && DATA[code].lines) || []).forEach(l => {
+      const c = contractState(l);
+      if (c && c.k) rows.push({ code, l, c });
+    });
+  });
+  rows.sort((a,b) => a.c.n - b.c.n);
+  document.getElementById('alerts').innerHTML = rows.map(r =>
+    '<div class="alert ' + r.c.k + '"><span>' + (r.c.k === 'red' ? '⚠' : '⏳') + '</span><span><b>' +
+    esc(nameOf(r.code)) + (r.l.label && r.l.label !== 'Main' ? ' · ' + esc(r.l.label) : '') + '</b> — ' +
+    esc(r.l.provider || 'provider not set') + ' ' + esc(r.c.text) +
+    '. Check the renewal price before it rolls over.</span></div>').join('');
+}
+
+function renderOutlet(code){
+  const rec   = DATA[code] || { lines:[] };
+  const lines = rec.lines || [];
+  const open  = !!OPEN[code] || (EDIT && EDIT.outlet === code);
+
+  let chips;
+  if (!lines.length) chips = '<span class="chip empty">Nothing recorded yet</span>';
+  else chips = lines.map(l => {
+    const c = contractState(l);
+    const cls = c && c.k ? ' ' + c.k : '';
+    return '<span class="chip' + cls + '">' + esc(l.provider || '—') +
+           (lines.length > 1 ? ' · ' + esc(l.label || '') : '') + '</span>';
+  }).join('');
+
+  let body;
+  if (EDIT && EDIT.outlet === code) body = renderForm(code);
+  else body = renderView(code, rec);
+
+  return '<div class="outlet' + (open ? ' open' : '') + '" data-outlet="' + code + '">' +
+    '<div class="o-head" data-toggle="' + code + '">' +
+      '<div class="o-code">' + esc(nameOf(code)) + '</div>' +
+      '<div class="o-sum"><div class="chips">' + chips + '</div></div>' +
+      '<div class="o-chev">▸</div>' +
+    '</div>' +
+    '<div class="o-body">' + body + '</div>' +
+  '</div>';
+}
+
+function renderView(code, rec){
+  const lines = rec.lines || [];
+  let h = '';
+  if (!lines.length){
+    h += '<p class="stamp" style="margin:12px 0 4px">No internet details for ' + esc(nameOf(code)) + ' yet.</p>';
+  }
+  lines.forEach(l => {
+    const c = contractState(l);
+    h += '<div class="line">';
+    h += '<div class="line-title"><div class="line-name">' + esc(l.label || 'Main') +
+         (l.provider ? '<small>' + esc(l.provider) + (l.plan ? ' · ' + esc(l.plan) : '') + '</small>' : '') +
+         '</div>' + (c ? '<span class="chip' + (c.k ? ' ' + c.k : '') + '">' + esc(c.text) + '</span>' : '') + '</div>';
+
+    phoneNumbers(l.hotline).forEach((n, k) => {
+      h += '<a class="call' + (k ? ' alt' : '') + '" href="' + esc(telHref(n)) + '">📞 Call ' +
+           esc(l.provider || 'support') + ' <span class="num">' + esc(n) + '</span></a>';
+    });
+    if (l.hotline && !phoneNumbers(l.hotline).length)
+      h += '<dl class="kv"><dt>Support</dt><dd>' + esc(l.hotline) + '</dd></dl>';
+
+    const row = (k, v, cls) => '<dt>' + k + '</dt><dd class="' + (v ? (cls||'') : 'none') + '">' + (v ? esc(v) : '—') + '</dd>';
+    h += '<dl class="kv">' +
+      row('Modem / ONT', l.modem) +
+      row('Router', l.router) +
+      row('Router address', l.routerIp, 'mono') +
+      row('Wi-Fi name', l.wifi) +
+      row('Equipment at', l.location) +
+      (l.notes ? row('Notes', l.notes) : '') +
+    '</dl>';
+    h += '<div class="vault">🔒 <span>Wi-Fi and router logins: Bitwarden → <b>' +
+         esc(l.vault || (nameOf(code) + ' Router')) + '</b></span></div>';
+    h += '</div>';
+  });
+
+  h += '<div class="o-foot"><span class="stamp">' +
+       (rec.updatedAt ? 'Updated ' + esc(fmtWhen(rec.updatedAt)) + (rec.updatedBy ? ' by ' + esc(rec.updatedBy) : '') : '') +
+       '</span><button class="btn" data-edit="' + code + '">' + (lines.length ? 'Edit' : 'Add details') + '</button></div>';
+
+  const mine = LOG.filter(r => r.outlet === code).slice(0, 8);
+  if (mine.length){
+    h += '<details class="hist"><summary>Change record (' + mine.length + ')</summary><ul>' +
+      mine.map(r => '<li>' + esc(fmtWhen(r.at)) + ' — <b>' + esc(r.who || 'someone') + '</b>: ' + esc(r.summary || 'edited') + '</li>').join('') +
+      '</ul></details>';
+  }
+  return h;
+}
+
+function renderForm(code){
+  let h = '<div class="form">';
+  h += '<div class="f-who"><label class="f" for="f-who">Your name <em>(goes in the change record)</em></label>' +
+       '<input class="f" id="f-who" value="' + esc(EDIT.who || '') + '" autocomplete="name"></div>';
+
+  EDIT.lines.forEach((l, i) => {
+    h += '<div class="f-line" data-line="' + i + '"><div class="f-line-head"><span>' + esc(l.label || ('Line ' + (i+1))) + '</span>' +
+         (EDIT.lines.length > 1 ? '<button class="btn ghost danger" data-rmline="' + i + '">Remove line</button>' : '') + '</div>';
+    FIELDS.forEach(([k, label, hint, type]) => {
+      const id = 'f-' + i + '-' + k;
+      h += '<label class="f" for="' + id + '">' + label + (hint ? ' <em>· ' + esc(hint) + '</em>' : '') + '</label>';
+      if (type === 'textarea'){
+        h += '<textarea class="f" id="' + id + '" data-i="' + i + '" data-k="' + k + '">' + esc(l[k]) + '</textarea>';
+      } else {
+        const t = type === 'date' ? 'date' : (type === 'tel' ? 'tel' : 'text');
+        const list = type === 'provider' ? ' list="providers"' : '';
+        h += '<input class="f" type="' + t + '" id="' + id + '" data-i="' + i + '" data-k="' + k + '" value="' + esc(l[k]) + '"' + list +
+             ' autocomplete="off" autocapitalize="' + (k === 'routerIp' ? 'none' : 'sentences') + '">';
+      }
+    });
+    h += '</div>';
+  });
+  h += '<datalist id="providers">' + PROVIDERS.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>';
+
+  if (GUARD && GUARD.outlet === code){
+    h += '<div class="guard"><b>This looks like it contains a password.</b> ' +
+         'This page is public, so passwords belong in Bitwarden, not here. Found in: ' +
+         esc(GUARD.hits.join(', ')) + '.' +
+         '<div class="f-actions"><button class="btn" data-guardback="1">Go back and remove it</button>' +
+         '<button class="btn ghost danger" data-guardsave="1">It isn’t a password — save</button></div></div>';
+  }
+
+  h += '<div class="f-actions">' +
+       '<button class="btn" data-addline="1">+ Another line</button>' +
+       '<span style="flex:1"></span>' +
+       '<button class="btn ghost" data-cancel="1">Cancel</button>' +
+       '<button class="btn primary" data-save="1">Save</button></div>';
+  h += '<div class="err" id="f-err"></div>';
+  h += '</div>';
+  return h;
+}
+
+/* ---------- events ---------- */
+function wire(){
+  document.querySelectorAll('[data-toggle]').forEach(el => el.onclick = () => {
+    const c = el.getAttribute('data-toggle');
+    if (EDIT && EDIT.outlet === c) return;       // don't fold away a half-typed form
+    OPEN[c] = !OPEN[c];
+    if (tg) tg.HapticFeedback.impactOccurred('light');
+    render();
+  });
+  document.querySelectorAll('[data-edit]').forEach(el => el.onclick = () => startEdit(el.getAttribute('data-edit')));
+  document.querySelectorAll('input.f[data-k], textarea.f[data-k]').forEach(el => el.oninput = () => {
+    EDIT.lines[+el.dataset.i][el.dataset.k] = el.value;
+    if (el.dataset.k === 'label'){
+      const head = el.closest('.f-line').querySelector('.f-line-head span');
+      if (head) head.textContent = el.value || ('Line ' + (+el.dataset.i + 1));
+    }
+  });
+  const who = document.getElementById('f-who');
+  if (who) who.oninput = () => { EDIT.who = who.value; };
+  document.querySelectorAll('[data-addline]').forEach(el => el.onclick = () => {
+    EDIT.lines.push(blankLine(EDIT.outlet, EDIT.lines.length)); GUARD = null; render();
+  });
+  document.querySelectorAll('[data-rmline]').forEach(el => el.onclick = () => {
+    EDIT.lines.splice(+el.getAttribute('data-rmline'), 1); GUARD = null; render();
+  });
+  document.querySelectorAll('[data-cancel]').forEach(el => el.onclick = () => { EDIT = null; GUARD = null; render(); });
+  document.querySelectorAll('[data-save]').forEach(el => el.onclick = () => trySave(false));
+  document.querySelectorAll('[data-guardsave]').forEach(el => el.onclick = () => trySave(true));
+  document.querySelectorAll('[data-guardback]').forEach(el => el.onclick = () => { GUARD = null; render(); });
+}
+
+function startEdit(code){
+  const rec = DATA[code] || { lines:[] };
+  const lines = (rec.lines && rec.lines.length ? rec.lines : [blankLine(code, 0)])
+    .map(l => Object.assign(blankLine(code, 0), l));
+  EDIT = { outlet: code, lines: JSON.parse(JSON.stringify(lines)), who: getWho() };
+  GUARD = null;
+  OPEN[code] = true;
+  render();
+}
+
+/* "Added CC Main (Singtel)", "Changed hotline, router" -- enough for someone
+   reading the record later to know what moved without a full diff. */
+function summarise(before, after){
+  const b = before || [], parts = [];
+  const byId = {}; b.forEach(l => byId[l.id] = l);
+  after.forEach(l => {
+    const old = byId[l.id];
+    if (!old){ parts.push('added ' + (l.label || 'line') + (l.provider ? ' (' + l.provider + ')' : '')); return; }
+    const changed = FIELDS.filter(([k]) => String(old[k]||'') !== String(l[k]||'')).map(([,label]) => label.toLowerCase());
+    if (changed.length) parts.push((after.length > 1 ? (l.label || 'line') + ': ' : '') + 'changed ' + changed.join(', '));
+    delete byId[l.id];
+  });
+  Object.values(byId).forEach(l => parts.push('removed ' + (l.label || 'line')));
+  return parts.join('; ') || 'no changes';
+}
+
+function trySave(force){
+  const err = document.getElementById('f-err');
+  const who = (EDIT.who || '').trim();
+  if (!who){ if (err) err.textContent = 'Put your name in first, so the change record says who.'; document.getElementById('f-who').focus(); return; }
+
+  const lines = EDIT.lines.map(l => {
+    const o = {}; FIELDS.forEach(([k]) => o[k] = String(l[k] || '').trim()); o.id = l.id || newId(); return o;
+  }).filter(l => FIELDS.some(([k]) => k !== 'label' && k !== 'vault' && l[k]));   // drop untouched blanks
+
+  if (!force){
+    const hits = passwordHits(lines);
+    if (hits.length){ GUARD = { outlet: EDIT.outlet, hits }; render(); return; }
+  }
+
+  const code   = EDIT.outlet;
+  const before = (DATA[code] && DATA[code].lines) || [];
+  const summary = summarise(before, lines);
+  const rec = { outlet: code, lines, updatedAt: new Date().toISOString(), updatedBy: who };
+
+  setWho(who);
+  DATA[code] = rec;
+  const entry = { outlet: code, who, at: rec.updatedAt, summary };
+  LOG.unshift(entry);
+  saveLocal();
+  EDIT = null; GUARD = null;
+  render();
+
+  if (CLOUD){
+    setSync('loading', 'Saving…');
+    CLOUD.collection('outlet_internet').doc(code).set(rec)
+      .then(() => CLOUD.collection('outlet_internet_changes').add(entry))
+      .then(() => setSync('ok', 'Saved · shared with everyone'))
+      .catch(() => setSync('warn', 'Saved on this phone only — could not reach the server'));
+  } else {
+    setSync('warn', 'Saved on this phone only — ' + (CLOUD_ERR || 'the server is not connected'));
+  }
+}
+
+/* ---------- cloud ---------- */
+const FB_CONFIG = {
+  apiKey: "AIzaSyANFCZbvRGO9aMRtG9MF_qONO3FL85CzSo",
+  authDomain: "maintenance-board-f931a.firebaseapp.com",
+  projectId: "maintenance-board-f931a",
+  storageBucket: "maintenance-board-f931a.firebasestorage.app",
+  messagingSenderId: "169864970579",
+  appId: "1:169864970579:web:bfb7490d0aebcfed17e1a6"
+};
+
+function cloudStart(){
+  try {
+    if (typeof firebase === 'undefined'){ CLOUD_ERR = 'the database library did not load'; return false; }
+    if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    CLOUD = firebase.firestore();
+  } catch(e){ CLOUD = null; CLOUD_ERR = 'could not start the database'; return false; }
+
+  CLOUD.collection('outlet_internet').onSnapshot(snap => {
+    CLOUD_OK = true;
+    const next = {};
+    snap.forEach(d => { const r = d.data(); if (r && OUTLETS.includes(d.id)) next[d.id] = r; });
+    DATA = next;
+    saveLocal();
+    if (!EDIT) render(); else renderAlerts();   // never wipe a form someone is typing into
+    setSync('ok', 'Up to date · shared with everyone');
+  }, () => { CLOUD_OK = false; setSync('warn', 'Showing the copy on this phone — could not reach the server'); });
+
+  CLOUD.collection('outlet_internet_changes').orderBy('at','desc').limit(200).onSnapshot(snap => {
+    LOG = snap.docs.map(d => d.data());
+    saveLocal();
+    if (!EDIT) render();
+  }, () => {});
+  return true;
+}
+
+/* ---------- start ---------- */
+(function start(){
+  const cachedAt = loadLocal();
+  render();
+  if (cachedAt) setSync('loading', 'Showing saved copy · checking for changes…');
+  if (!cloudStart()){
+    setSync('warn', (cachedAt ? 'Showing the copy on this phone — ' : 'Not connected — ') + CLOUD_ERR);
+  }
+})();
+</script>
+</body>
+</html>
