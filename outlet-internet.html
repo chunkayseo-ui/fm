@@ -85,6 +85,11 @@
   .vault{display:flex; align-items:center; gap:7px; padding:9px 11px; border-radius:10px; background:var(--bg);
     font-size:12.5px; color:var(--ink-soft); margin:4px 0 8px;}
   .vault b{color:var(--ink); font-weight:600;}
+  .kv dd.wp{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .kv dd.wp .mono{font-size:14px; font-weight:600;}
+  .copy{font:600 12px/1 'Inter',sans-serif; padding:6px 10px; border-radius:8px; border:1.5px solid var(--border);
+    background:var(--surface); color:var(--teal-deep); cursor:pointer;}
+  .copy.done{background:var(--teal-soft); border-color:var(--teal-soft);}
 
   .o-foot{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; flex-wrap:wrap;}
   .stamp{font-size:11.5px; color:var(--ink-soft);}
@@ -149,7 +154,7 @@
     <h1>Outlet Internet</h1>
   </div>
   <p class="lede">Who to call, what's installed and where it sits, for every outlet and any other location you add.
-    <b>Passwords are not kept here</b> — this page is public. They're in Bitwarden, under the entry named on each line.</p>
+    <b>Router logins are not kept here</b> — this page is public. They're in Bitwarden, under the entry named on each line. The Wi-Fi password shown is the one given to guests.</p>
 
   <div class="sync-row"><span class="sync-dot loading" id="syncDot"></span><span id="syncText">Loading…</span></div>
 
@@ -201,7 +206,8 @@ const FIELDS = [
   ['modem',       'Modem / ONT model',       '',                                      'text'],
   ['router',      'Router model',            '',                                      'text'],
   ['routerIp',    'Router address',          'e.g. 192.168.1.1',                      'text'],
-  ['wifi',        'Wi-Fi name',              'The network name, not the password',    'text'],
+  ['wifi',        'Wi-Fi name',              'The network name',                      'text'],
+  ['wifiPass',    'Wi-Fi password',          'The one guests are given. Router login stays in Bitwarden', 'text'],
   ['location',    'Where the equipment is',  'e.g. plant room, shelf above the DB',   'text'],
   ['vault',       'Password app entry',      'The name of the entry in Bitwarden',    'text'],
   ['notes',       'Notes',                   'No passwords',                          'textarea'],
@@ -234,7 +240,7 @@ function telHref(n){ const d = String(n||'').replace(/[^\d+]/g,''); return d ? '
 function newId(){ return Math.random().toString(36).slice(2, 9); }
 function blankLine(outlet, n){
   return { id:newId(), label: n ? 'Line ' + (n + 1) : 'Main', provider:'', plan:'', hotline:'',
-           contractEnd:'', modem:'', router:'', routerIp:'', wifi:'', location:'',
+           contractEnd:'', modem:'', router:'', routerIp:'', wifi:'', wifiPass:'', location:'',
            vault: nameOf(outlet) + ' Router', notes:'', extra:[] };
 }
 function daysUntil(ymd){
@@ -269,7 +275,7 @@ function passwordHits(lines){
   const hits = [];
   lines.forEach(l => {
     FIELDS.forEach(([k, label]) => {
-      if (k === 'vault') return;                 // naming the entry is fine
+      if (k === 'vault' || k === 'wifiPass') return;   // naming the entry is fine; guest Wi-Fi is given out anyway
       const v = String(l[k] || '');
       if (!v) return;
       // "password is in Bitwarden" is the one sentence we want people to write
@@ -385,11 +391,13 @@ function renderView(code, rec){
       row('Router', l.router) +
       row('Router address', l.routerIp, 'mono') +
       row('Wi-Fi name', l.wifi) +
+      (l.wifiPass ? '<dt>Wi-Fi password</dt><dd class="wp"><span class="mono">' + esc(l.wifiPass) + '</span>' +
+        '<button class="copy" data-copy="' + esc(l.wifiPass) + '">Copy</button></dd>' : row('Wi-Fi password', '')) +
       row('Equipment at', l.location) +
       (l.extra || []).map(x => row(esc(x.k || 'Detail'), x.v)).join('') +
       (l.notes ? row('Notes', l.notes) : '') +
     '</dl>';
-    h += '<div class="vault">🔒 <span>Wi-Fi and router logins: Bitwarden → <b>' +
+    h += '<div class="vault">🔒 <span>Router login: Bitwarden → <b>' +
          esc(l.vault || (nameOf(code) + ' Router')) + '</b></span></div>';
     h += '</div>';
   });
@@ -454,7 +462,7 @@ function renderForm(code){
 
   if (GUARD && GUARD.outlet === code){
     h += '<div class="guard"><b>This looks like it contains a password.</b> ' +
-         'This page is public, so passwords belong in Bitwarden, not here. Found in: ' +
+         'This page is public, so router and account passwords belong in Bitwarden, not here. (The guest Wi-Fi password has its own box and is fine.) Found in: ' +
          esc(GUARD.hits.join(', ')) + '.' +
          '<div class="f-actions"><button class="btn" data-guardback="1">Go back and remove it</button>' +
          '<button class="btn ghost danger" data-guardsave="1">It isn’t a password — save</button></div></div>';
@@ -543,6 +551,7 @@ function wire(){
     render();
   });
   document.querySelectorAll('[data-edit]').forEach(el => el.onclick = () => startEdit(el.getAttribute('data-edit')));
+  document.querySelectorAll('[data-copy]').forEach(el => el.onclick = () => copyText(el.getAttribute('data-copy'), el));
   document.querySelectorAll('input.f[data-k], textarea.f[data-k]').forEach(el => el.oninput = () => {
     EDIT.lines[+el.dataset.i][el.dataset.k] = el.value;
     if (el.dataset.k === 'label'){
@@ -587,6 +596,22 @@ function wire(){
   document.querySelectorAll('[data-save]').forEach(el => el.onclick = () => trySave(false));
   document.querySelectorAll('[data-guardsave]').forEach(el => el.onclick = () => trySave(true));
   document.querySelectorAll('[data-guardback]').forEach(el => el.onclick = () => { GUARD = null; render(); });
+}
+
+function copyText(text, btn){
+  const done = () => { btn.textContent = 'Copied'; btn.classList.add('done');
+    if (tg) tg.HapticFeedback.notificationOccurred('success');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1500); };
+  const fallback = () => {
+    const t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly','');
+    t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); done(); } catch(e){}
+    document.body.removeChild(t);
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  } catch(e){ fallback(); }
 }
 
 function startEdit(code){
